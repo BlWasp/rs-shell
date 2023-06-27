@@ -12,10 +12,10 @@ mod server;
 
 use crate::client::client;
 use crate::server::server;
+use clap::{Arg, Command};
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use std::error::Error;
-use std::env;
 
 fn main() -> Result<(), Box<dyn Error>> {
     SimpleLogger::new()
@@ -25,29 +25,80 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
     ::log::set_max_level(LevelFilter::Info);
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 4 {
-        log::warn!("{}", help());
-        std::process::exit(1);
-    }
+    let args = Command::new("rs-shell")
+        .author("BlackWasp")
+        .version("0.1.1")
+        .after_help("In a session, type 'help' for advanced integrated commands")
+        .arg(
+            Arg::new("side")
+                .short('s')
+                .long("side")
+                .required(true)
+                .value_parser([
+                    clap::builder::PossibleValue::new("c"),
+                    clap::builder::PossibleValue::new("l"),
+                ])
+                .help("launch the client or the listener"),
+        )
+        .arg(
+            Arg::new("ip")
+                .short('i')
+                .long("ip")
+                .required(true)
+                .help("IP address to bind to for the listener, or to connect to for the clien"),
+        )
+        .arg(
+            Arg::new("port")
+                .short('p')
+                .long("port")
+                .required(true)
+                .help("port address to bind to for the listener, or to connect to for the client"),
+        )
+        .arg(
+            Arg::new("cert_path")
+                .long("cert-path")
+                .requires_if("side", "l")
+                .help("path of the TLS certificate (in PFX or PKCS12 format) for the server"),
+        )
+        .arg(
+            Arg::new("cert_pass")
+                .long("cert-pass")
+                .requires_if("side", "l")
+                .help("password of the TLS certificate for the server"),
+        )
+        .get_matches();
 
-    if args[1] == "l" {
-        match server(&args[2], args[3].parse::<u16>().unwrap()) {
+    if args.get_one::<String>("side").unwrap() == "l" {
+        match server(
+            args.get_one::<String>("ip").unwrap().as_str(),
+            args.get_one::<String>("port")
+                .unwrap()
+                .parse::<u16>()
+                .unwrap(),
+            args.get_one::<String>("cert_path").unwrap().as_str(),
+            args.get_one::<String>("cert_pass").unwrap().as_str(),
+        ) {
             Ok(_) => (),
             Err(r) => {
                 log::error!("Error starting the server : {}", r);
                 return Err(r);
             }
         }
-    } else if args[1] == "c" {
-        match client(&args[2], &args[3]) {
+    } else if args.get_one::<String>("side").unwrap() == "c" {
+        match client(
+            args.get_one::<String>("ip").unwrap().as_str(),
+            args.get_one::<String>("port").unwrap().as_str(),
+        ) {
             Ok(_) => (),
             Err(r) => {
                 log::debug!(
                     "Error during client execution : {}. Attempt to restart it",
                     r
                 );
-                match client(&args[2], &args[3]) {
+                match client(
+                    args.get_one::<String>("ip").unwrap().as_str(),
+                    args.get_one::<String>("port").unwrap().as_str(),
+                ) {
                     Ok(_) => (),
                     Err(r) => {
                         log::debug!("Error still present : {}", r);
@@ -59,19 +110,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-fn help() -> String {
-    return "options missing
-    Usage : shell.exe [l | c] IP port
-
-    l       launch the listener application
-    c       launch the client application
-
-    IP      IP address to bind to for the listener, or to connect to for the client
-    port    port address to bind to for the listener, or to connect to for the client
-
-    In a session, type 'help' for advanced integrated commands
-    "
-    .to_string();
 }

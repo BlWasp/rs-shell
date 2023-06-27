@@ -14,9 +14,9 @@ use crate::autopwn;
 
 static PATH_REGEX: &str = r#"PS (?<ParentPath>(?:[a-zA-Z]\:|\\\\[\w\s\.\-]+\\[^\/\\<>:"|?\n\r]+)\\(?:[^\/\\<>:"|?\n\r]+\\)*)(?<BaseName>[^\/\\<>:"|?\n\r]*?)> "#;
 
-pub fn server(i: &str, p: u16) -> Result<(), Box<dyn Error>> {
+pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<(), Box<dyn Error>> {
     // Read TLS certificate and create identity from it
-    let file = File::open(r#"[CERTFICATE_PATH]"#);
+    let file = File::open(cert_path);
     let mut file = match file {
         Ok(f) => f,
         Err(_) => {
@@ -27,11 +27,10 @@ pub fn server(i: &str, p: u16) -> Result<(), Box<dyn Error>> {
 
     let mut identity = vec![];
     file.read_to_end(&mut identity)?;
-    let identity = Identity::from_pkcs12(&identity, "[CERTIFICATE_PASSWORD]")?;
+    let identity = Identity::from_pkcs12(&identity, cert_pass)?;
 
     // Addr and port where server will bind
     let ip = i.parse::<Ipv4Addr>();
-    let port: u16 = p;
     let ip_addr = match ip {
         Ok(i) => i,
         Err(r) => {
@@ -482,7 +481,7 @@ fn help() -> String {
 
     [+] Special commands
     > autopwn
-        escalate to the SYSTEM account from any local account by exploiting a zero day
+        escalate to the SYSTEM or root account from any local account by exploiting a zero day
     ".to_string();
 }
 
