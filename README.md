@@ -39,7 +39,7 @@ A new self-signed TLS certificate can be obtained like this :
 
 ```bash
 openssl req -newkey rsa:2048 -nodes -keyout private.key -x509 -days 365 -out certificate.cer
-openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.cr
+openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.cer
 ```
 
 ### Compilation

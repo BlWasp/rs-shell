@@ -57,13 +57,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .arg(
             Arg::new("cert_path")
                 .long("cert-path")
-                .requires_if("side", "l")
+                .required_if_eq("side", "l")
                 .help("path of the TLS certificate (in PFX or PKCS12 format) for the server"),
         )
         .arg(
             Arg::new("cert_pass")
                 .long("cert-pass")
-                .requires_if("side", "l")
+                .required_if_eq("side", "l")
                 .help("password of the TLS certificate for the server"),
         )
         .get_matches();
