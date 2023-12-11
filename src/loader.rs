@@ -21,9 +21,9 @@ use windows_sys::Win32::System::Memory::{
     VirtualAlloc, VirtualAllocEx, VirtualFree, VirtualProtectEx,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessA, CreateRemoteThread, CreateThread, GetCurrentProcess, NtQueryInformationProcess,
-    ResumeThread, WaitForSingleObject, PROCESSINFOCLASS, PROCESS_BASIC_INFORMATION, STARTUPINFOA,
+    CreateProcessA, CreateRemoteThread, CreateThread, GetCurrentProcess, ResumeThread, WaitForSingleObject, PROCESS_BASIC_INFORMATION, STARTUPINFOA,
 };
+use windows_sys::Wdk::System::Threading::{PROCESSINFOCLASS, NtQueryInformationProcess};
 
 pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
     //Retrieve the sizes of the headers and the PE image in memory
