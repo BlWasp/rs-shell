@@ -1,3 +1,0 @@
-[submodule "syscalls-rs"]
-	path = syscalls-rs
-	url = https://github.com/BlWasp/syscalls-rs.git
