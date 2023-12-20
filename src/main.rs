@@ -8,7 +8,9 @@ mod autopwn;
 #[cfg_attr(target_family = "windows", path = "client_windows.rs")]
 mod client;
 mod loader;
+mod loader_syscalls;
 mod server;
+use syscalls::syscall;
 
 use crate::client::client;
 use crate::server::server;
@@ -27,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
-        .version("0.1.1")
+        .version("0.1.2")
         .after_help("In a session, type 'help' for advanced integrated commands")
         .arg(
             Arg::new("side")
@@ -45,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .short('i')
                 .long("ip")
                 .required(true)
-                .help("IP address to bind to for the listener, or to connect to for the clien"),
+                .help("IP address to bind to for the listener, or to connect to for the client"),
         )
         .arg(
             Arg::new("port")

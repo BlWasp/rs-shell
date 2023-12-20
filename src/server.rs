@@ -469,6 +469,10 @@ fn help() -> String {
     > load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
         load a shellcode in a remote process memory and start a new thread with it
 
+    [+] Loading commands with indirect syscalls
+    > syscalls -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
+        load a shellcode in a remote process memory and start a new thread with it, but everything is performed with indirect syscalls
+
     [+] Bypass commands
     > powpow
         start a new interactive PowerShell session with the AMSI patched in memory
