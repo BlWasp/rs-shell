@@ -13,8 +13,6 @@ use ntapi::ntrtl::{
     RtlInitUnicodeString, RtlProcessHeap, PRTL_USER_PROCESS_PARAMETERS,
     RTL_USER_PROC_PARAMS_NORMALIZED,
 };
-use syscalls::syscall;
-
 use winapi::shared::ntdef::{
     HANDLE, NTSTATUS, NT_SUCCESS, NULL, OBJECT_ATTRIBUTES, UNICODE_STRING,
 };
@@ -24,6 +22,8 @@ use winapi::um::winnt::{
     HEAP_ZERO_MEMORY, MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READ, PAGE_READWRITE,
     PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
 };
+
+use syscalls::syscall;
 
 pub fn shellcode_loader_syscalls(
     mut shellcode: Vec<u8>,

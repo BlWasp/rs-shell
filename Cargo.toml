@@ -7,8 +7,6 @@ edition = "2021"
 
 [dependencies]
 native-tls = "0.2.11"
-ntapi = { version = "0.4.1", features = ["impl-default"] }
-winapi = "0.3.9"
 signal-hook = "0.3.17"
 regex = "1.10.2"
 open = "5.0.1"
@@ -17,6 +15,8 @@ log = "0.4.20"
 ctrlc = "3.4.1"
 clap = { version = "4.4.11", features = ["derive"] }
 syscalls = { git = "https://github.com/BlWasp/syscalls-rs.git", branch = "main",  features = ["_INDIRECT_"] }
+ntapi = { version = "0.4.1", features = ["impl-default"] }
+winapi = "0.3.9"
 
 [dependencies.windows-sys]
 version = "0.52.0"

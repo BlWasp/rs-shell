@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_colors(true)
         .init()
         .unwrap();
-    ::log::set_max_level(LevelFilter::Info);
+    ::log::set_max_level(LevelFilter::Debug);
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
