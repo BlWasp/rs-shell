@@ -47,7 +47,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
         );
 
         let mut dos_head = IMAGE_DOS_HEADER::default();
-        fill_structure_from_array(&mut dos_head, &buf);
+        fill_structure_from_array(&mut dos_head, &buf, false);
 
         log::debug!("DOS magic header : {:x?}", dos_head.e_magic);
         log::debug!(
@@ -61,6 +61,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
             &mut nt_head,
             (base as isize + dos_head.e_lfanew as isize) as *const c_void,
             GetCurrentProcess(),
+            false,
         );
 
         log::debug!("NT headers : {:#x?}", nt_head);
@@ -77,6 +78,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                     + (i * std::mem::size_of::<IMAGE_SECTION_HEADER>() as usize))
                     as *const c_void,
                 GetCurrentProcess(),
+                false,
             );
             log::debug!(
                 "Virtual addresses of sections {} is {:#x?}",
@@ -111,6 +113,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                     &mut image_descriptor,
                     origin_first_thunk as *const c_void,
                     GetCurrentProcess(),
+                    false,
                 );
                 if image_descriptor.Name == 0 && image_descriptor.FirstThunk == 0 {
                     log::debug!("No more import");
@@ -120,6 +123,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                     let import_name = read_from_memory(
                         (base as usize + image_descriptor.Name as usize) as *const c_void,
                         GetCurrentProcess(),
+                        false,
                     );
                     let load_dll = LoadLibraryA(import_name.as_bytes().as_ptr() as *const u8);
                     log::debug!("Import DLL name : {}", import_name);
@@ -136,6 +140,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                             &mut thunk_data,
                             (thunk_ptr as usize) as *const c_void,
                             GetCurrentProcess(),
+                            false,
                         );
                         log::debug!("{:?}", thunk_data);
                         if thunk_data.Address == [0; 8]
@@ -150,6 +155,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                             let function_name = read_from_memory(
                                 (base as usize + offset as usize + 2) as *const c_void,
                                 GetCurrentProcess(),
+                                false,
                             );
                             log::debug!("Function : {}", function_name);
 
@@ -195,6 +201,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
                     &mut reloc,
                     first_reloc_ptr as *const c_void,
                     GetCurrentProcess(),
+                    false,
                 );
 
                 if reloc.SizeofBlock == 0 {
@@ -373,7 +380,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
         std::ptr::copy(buf.as_ptr() as *const u8, base as *mut u8, header_s);
 
         let mut dos_head = IMAGE_DOS_HEADER::default();
-        fill_structure_from_memory(&mut dos_head, base, GetCurrentProcess());
+        fill_structure_from_memory(&mut dos_head, base, GetCurrentProcess(), false);
 
         log::debug!("DOS magic header : {:x?}", dos_head.e_magic);
         log::debug!(
@@ -387,6 +394,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
             &mut nt_head,
             (base as isize + dos_head.e_lfanew as isize) as *const c_void,
             GetCurrentProcess(),
+            false,
         );
 
         log::debug!("NT headers : {:#x?}", nt_head);
@@ -403,6 +411,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                     + (i * std::mem::size_of::<IMAGE_SECTION_HEADER>() as usize))
                     as *const c_void,
                 GetCurrentProcess(),
+                false,
             );
             log::debug!(
                 "Virtual addresses of sections {} is {:#x?}",
@@ -445,6 +454,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                     &mut image_descriptor,
                     origin_first_thunk as *const c_void,
                     GetCurrentProcess(),
+                    false,
                 );
                 if image_descriptor.Name == 0 && image_descriptor.FirstThunk == 0 {
                     log::debug!("No more import");
@@ -454,6 +464,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                     let import_name = read_from_memory(
                         (base as usize + image_descriptor.Name as usize) as *const c_void,
                         GetCurrentProcess(),
+                        false,
                     );
                     let load_dll = LoadLibraryA(import_name.as_bytes().as_ptr() as *const u8);
                     log::debug!("Import DLL name : {}", import_name);
@@ -470,6 +481,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                             &mut thunk_data,
                             (thunk_ptr as usize) as *const c_void,
                             GetCurrentProcess(),
+                            false,
                         );
                         log::debug!("{:x?}", thunk_data);
                         if thunk_data.Address == [0; 8]
@@ -484,6 +496,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                             let function_name = read_from_memory(
                                 (base as usize + offset as usize + 2) as *const c_void,
                                 GetCurrentProcess(),
+                                false,
                             );
                             log::debug!("Function : {}", function_name);
 
@@ -538,6 +551,7 @@ pub fn remote_loader(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), Box<dyn Er
                     &mut reloc,
                     first_reloc_ptr as *const c_void,
                     GetCurrentProcess(),
+                    false,
                 );
 
                 if reloc.SizeofBlock == 0 {

