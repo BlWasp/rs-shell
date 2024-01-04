@@ -1,6 +1,6 @@
 [package]
 name = "rs-shell"
-version = "0.1.2"
+version = "0.1.5"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,8 +14,7 @@ simple_logger = "4.3.0"
 log = "0.4.20"
 ctrlc = "3.4.1"
 clap = { version = "4.4.11", features = ["derive"] }
-syscalls = { git = "https://github.com/BlWasp/syscalls-rs.git", branch = "main",  features = ["_INDIRECT_"] }
-ntapi = { version = "0.4.1", features = ["impl-default"] }
+ntapi = "0.4.1"
 winapi = "0.3.9"
 
 [dependencies.windows-sys]
@@ -31,3 +30,6 @@ features = [
     "Win32_System_Kernel",
     "Wdk_System_Threading"
 ]
+
+[target.'cfg(target_os = "windows")'.dependencies]
+syscalls = { git = "https://github.com/BlWasp/syscalls-rs.git", branch = "main",  features = ["_INDIRECT_"] }

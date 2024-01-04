@@ -10,7 +10,6 @@ mod client;
 mod loader;
 mod loader_syscalls;
 mod server;
-use syscalls::syscall;
 
 use crate::client::client;
 use crate::server::server;
@@ -18,6 +17,8 @@ use clap::{Arg, Command};
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use std::error::Error;
+#[cfg(target_family = "windows")]
+use syscalls::syscall;
 
 fn main() -> Result<(), Box<dyn Error>> {
     SimpleLogger::new()
@@ -25,11 +26,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_colors(true)
         .init()
         .unwrap();
-    ::log::set_max_level(LevelFilter::Debug);
+    ::log::set_max_level(LevelFilter::Info);
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
-        .version("0.1.2")
+        .version("0.1.5")
         .after_help("In a session, type 'help' for advanced integrated commands")
         .arg(
             Arg::new("side")

