@@ -55,7 +55,10 @@ openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.c
 
 The project can be compiled with `cargo build --release` on Windows or Linux and the binary will be present in `target/release/`, or the target name if a target is specified.
 
-Tu compile for a different target than your current OS you can use, for example, `cargo build --release --target x86_64-unknown-linux-gnu` (be sure to use the appropriate toolchain and to have all the required dependencies).
+To cross-compile for a different target than your current OS you can use, for example, `cargo build --release --target x86_64-pc-windows-gnu`. In order to work, this requires the appropriate target toolchain to be installed. As an example, to generate Windows binaries from an Ubuntu machine:
+* `sudo apt install mingw-w64`
+* `rustup target add x86_64-pc-windows-gnu`
+* `cargo build --release --target x86_64-pc-windows-gnu`
 
 The project compilation has been tested with the following Rust toolchains :
 

