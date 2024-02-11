@@ -171,7 +171,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                                             Ok(_) => {
                                                                 buff = [0; 4096];
                                                                 stream
-                                                                    .read_exact(&mut buff)
+                                                                    .read(&mut buff)
                                                                     .unwrap();
                                                             }
                                                             Err(r) => {
@@ -210,7 +210,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                             match stream.write(cmd.as_bytes()) {
                                                 Ok(_) => {
                                                     stream
-                                                        .read_exact(&mut buff)
+                                                        .read(&mut buff)
                                                         .expect("Cannot read file creation result");
                                                     if String::from_utf8_lossy(&buff)
                                                         .trim_end_matches('\0')
