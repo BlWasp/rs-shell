@@ -1,7 +1,7 @@
 #![cfg(target_family = "windows")]
 
 use crate::utils::structures::{IMAGE_nt_headS64, IMAGE_DOS_HEADER, IMAGE_EXPORT_DIRECTORY};
-use crate::utils::tools::*;
+use crate::utils::tools_windows::*;
 
 use core::time;
 use regex::Regex;

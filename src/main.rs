@@ -1,6 +1,7 @@
 mod utils {
     pub mod structures;
     pub mod tools;
+    pub mod tools_windows;
 }
 mod amsi_bypass;
 mod autopwn;
@@ -30,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
-        .version("0.1.5")
+        .version("0.1.6")
         .after_help("In a session, type 'help' for advanced integrated commands")
         .arg(
             Arg::new("side")

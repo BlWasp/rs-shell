@@ -1,3 +1,5 @@
+use crate::utils::tools::receive_and_write_bytes;
+
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -109,44 +111,27 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
             let path: Vec<&str> = cmd.split(' ').collect();
             match File::create(path[2].trim_end_matches('\0').trim_end()) {
                 Ok(mut file) => {
-                    tls_stream.write_all("Creation OK".as_bytes())?;
+                    tls_stream.write("Creation OK".as_bytes())?;
                     let mut file_buffer = [0; 4096];
+                    let mut file_vec: Vec<u8> = Vec::new();
                     match tls_stream.read(&mut file_buffer) {
-                        Ok(_) => loop {
-                            if String::from_utf8_lossy(&file_buffer).starts_with("EndOfTheFile") {
-                                // Drop all the ending null bytes added by the buffer
-                                let file_len_string = String::from_utf8_lossy(&file_buffer)
-                                    .split_once(':')
-                                    .map(|x| x.1)
-                                    .unwrap_or("0")
-                                    .trim_end_matches('\0')
-                                    .to_owned();
-                                let file_len_u64 = file_len_string.parse::<u64>();
-                                match file.set_len(file_len_u64.unwrap()) {
-                                    Ok(_) => (),
-                                    Err(r) => {
-                                        log::debug!("Error dropping the null bytes at the end of the file : {}", r);
-                                        continue;
-                                    }
-                                }
-                                break;
-                            } else {
-                                file.write_all(&file_buffer)?;
-                                file_buffer = [0; 4096];
-                                tls_stream.read_exact(&mut file_buffer)?;
-                            }
-                        },
+                        Ok(_) => receive_and_write_bytes(
+                            &mut tls_stream,
+                            &mut file_vec,
+                            &mut file_buffer,
+                        )?,
                         Err(r) => {
                             log::debug!("Reading error : {}", r);
                             tls_stream.flush()?;
                             continue;
                         }
                     }
+                    file.write(&file_vec)?;
                 }
                 Err(r) => {
                     log::debug!("File creation error : {}", r);
                     tls_stream
-                        .write_all(("Creation not OK : ".to_owned() + &r.to_string()).as_bytes())?;
+                        .write(("Creation not OK : ".to_owned() + &r.to_string()).as_bytes())?;
                 }
             }
         } else {

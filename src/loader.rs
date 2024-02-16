@@ -4,7 +4,7 @@ use crate::utils::structures::{
     IMAGE_nt_headS64, IMAGE_DOS_HEADER, IMAGE_IMPORT_DESCRIPTOR, IMAGE_SECTION_HEADER,
     MY_IMAGE_BASE_RELOCATION, MY_IMAGE_THUNK_DATA64,
 };
-use crate::utils::tools::*;
+use crate::utils::tools_windows::*;
 
 use std::error::Error;
 use std::ffi::c_void;

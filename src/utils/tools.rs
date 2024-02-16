@@ -1,170 +1,60 @@
-#![cfg(target_family = "windows")]
+use std::error::Error;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::net::TcpStream;
 
-use std::ffi::c_void;
-
-use winapi::shared::ntdef::NULL;
-use windows_sys::Win32::System::{
-    Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory},
-    Threading::GetCurrentProcess,
-};
-
-use syscalls::syscall;
-
-pub fn fill_structure_from_array<T, U>(base: &mut T, arr: &[U], syscalls_value: bool) -> usize {
-    unsafe {
-        let mut ret_byte = 0;
-        if syscalls_value {
-            syscall!(
-                "NtWriteVirtualMemory",
-                GetCurrentProcess(),
-                base as *mut T as *mut c_void,
-                arr as *const _ as *mut c_void,
-                std::mem::size_of::<T>(),
-                &mut ret_byte
-            );
+pub fn receive_and_write_bytes(
+    tls_stream: &mut native_tls::TlsStream<TcpStream>,
+    bytes_vec: &mut Vec<u8>,
+    file_buffer: &mut [u8; 4096],
+) -> Result<(), Box<dyn Error>> {
+    loop {
+        if String::from_utf8_lossy(file_buffer).starts_with("EndOfTheFile") {
+            // Drop all the ending null bytes added by the buffer
+            let file_len_string = String::from_utf8_lossy(file_buffer)
+                .split_once(':')
+                .map(|x| x.1)
+                .unwrap_or("0")
+                .trim_end_matches('\0')
+                .to_owned();
+            let file_len_usize = file_len_string.parse::<usize>();
+            unsafe {
+                bytes_vec.set_len(file_len_usize.unwrap());
+            }
+            break;
         } else {
-            WriteProcessMemory(
-                GetCurrentProcess(),
-                base as *mut T as *mut c_void,
-                arr as *const _ as *const c_void,
-                std::mem::size_of::<T>(),
-                &mut ret_byte,
-            );
+            bytes_vec.extend_from_slice(file_buffer);
+            for elem in file_buffer.iter_mut() {
+                *elem = 0;
+            }
+            tls_stream.read(file_buffer)?;
         }
-        return ret_byte;
     }
+    Ok(())
 }
 
-pub fn fill_structure_from_memory<T>(
-    struct_to_fill: &mut T,
-    base: *const c_void,
-    prochandle: isize,
-    syscalls_value: bool,
-) {
-    unsafe {
-        let mut buf: Vec<u8> = vec![0; std::mem::size_of::<T>()];
-        if syscalls_value {
-            syscall!(
-                "NtReadVirtualMemory",
-                prochandle,
-                base as *mut c_void,
-                buf.as_mut_ptr() as *mut c_void,
-                std::mem::size_of::<T>(),
-                NULL
-            );
-        } else {
-            ReadProcessMemory(
-                prochandle,
-                base,
-                buf.as_mut_ptr() as *mut c_void,
-                std::mem::size_of::<T>(),
-                std::ptr::null_mut(),
-            );
-        }
-        fill_structure_from_array(struct_to_fill, &buf, syscalls_value);
-    }
-}
-
-pub fn read_from_memory(base: *const c_void, prochandle: isize, syscalls_value: bool) -> String {
-    let mut buf: Vec<u8> = vec![0; 100];
-    unsafe {
-        if syscalls_value {
-            syscall!(
-                "NtReadVirtualMemory",
-                prochandle,
-                base as *mut c_void,
-                buf.as_mut_ptr() as *mut c_void,
-                buf.len(),
-                NULL
-            );
-        } else {
-            ReadProcessMemory(
-                prochandle,
-                base,
-                buf.as_mut_ptr() as *mut c_void,
-                100,
-                std::ptr::null_mut(),
-            );
-        }
-    }
-    let mut i = 0;
-    let mut tmp: Vec<u8> = vec![0; 100];
-    while buf[i] != 0 {
-        tmp[i] = buf[i];
-        i += 1;
-    }
-
-    log::debug!("{}", String::from_utf8_lossy(&tmp).to_string());
-    return String::from_utf8_lossy(&tmp).to_string();
-}
-
-pub fn get_size(buffer: &Vec<u8>, struct_to_check: &str) -> usize {
-    if buffer.len() < 2 {
-        log::debug!("file size is less than 2");
-        return 0;
-    }
-    let magic = &buffer[0..2];
-    let magicstring = String::from_utf8_lossy(magic);
-    if magicstring == "MZ" {
-        if buffer.len() < 64 {
-            log::debug!("file size is less than 64");
-            return 0;
-        }
-        let ntoffset = &buffer[60..64];
-        unsafe {
-            let offset = std::ptr::read(ntoffset.as_ptr() as *const i32) as usize;
-
-            let bitversion = &buffer[offset + 4 + 20..offset + 4 + 20 + 2];
-            let bit = std::ptr::read(bitversion.as_ptr() as *const u16);
-            let index: usize;
-            if bit == 523 {
-                if struct_to_check == "header" {
-                    index = offset + 24 + 60;
-                    let headerssize = &buffer[index as usize..index as usize + 4];
-                    let size = std::ptr::read(headerssize.as_ptr() as *const i32);
-                    log::debug!("size of headers: {:x?}", size);
-                    return size as usize;
-                } else {
-                    index = offset + 24 + 60 - 4;
-                    let headerssize = &buffer[index as usize..index as usize + 4];
-                    let size = std::ptr::read(headerssize.as_ptr() as *const i32);
-                    log::debug!("size of image: {:x?}", size);
-                    return size as usize;
+pub fn read_and_send_file(
+    mut file: File,
+    stream: &mut native_tls::TlsStream<std::net::TcpStream>,
+) -> Result<(), Box<dyn Error>> {
+    let mut buff = [0; 4096];
+    loop {
+        match file.read(&mut buff) {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    let end_of_file =
+                        "EndOfTheFile:".to_owned() + &file.metadata()?.len().to_string();
+                    stream.write_all(end_of_file.as_bytes())?;
+                    break;
                 }
-            } else if bit == 267 {
-                if struct_to_check == "header" {
-                    index = offset + 24 + 60;
-                    let headerssize = &buffer[index as usize..index as usize + 4];
-                    let size = std::ptr::read(headerssize.as_ptr() as *const i32);
-                    //println!("size of headers: {:x?}", size);
-                    return size as usize;
-                } else {
-                    index = offset + 24 + 60 - 4;
-                    let headerssize = &buffer[index as usize..index as usize + 4];
-                    let size = std::ptr::read(headerssize.as_ptr() as *const i32);
-                    log::debug!("size of image: {:x?}", size);
-                    return size as usize;
-                }
-            } else {
-                log::debug!("invalid bit version");
-                return 0;
+                stream.write_all(&buff[..bytes_read])?;
+            }
+            Err(r) => {
+                log::error!("Error reading the file : {}", r);
+                stream.flush()?;
+                return Err(Box::new(r));
             }
         }
-    } else {
-        log::debug!("its not a pe file");
-        return 0;
     }
-}
-
-pub fn string_from_array(array: &mut Vec<u8>) -> String {
-    let mut res = String::new();
-
-    for i in 0..array.len() {
-        if array[i] == 0 {
-            return res;
-        }
-        res.push(array[i] as char);
-    }
-
-    return res;
+    Ok(())
 }
