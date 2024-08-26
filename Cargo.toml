@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-native-tls = "0.2.11"
+native-tls = "0.2.12"
 signal-hook = "0.3.17"
-regex = "1.10.2"
-open = "5.0.1"
-simple_logger = "4.3.0"
-log = "0.4.20"
-ctrlc = "3.4.1"
-clap = { version = "4.4.11", features = ["derive"] }
+regex = "1.10.6"
+open = "5.3.0"
+simple_logger = "5.0.0"
+log = "0.4.22"
+ctrlc = "3.4.5"
+clap = { version = "4.5.16", features = ["derive"] }
 ntapi = "0.4.1"
 winapi = "0.3.9"
 time = "0.3.36"
@@ -27,7 +27,7 @@ actix-multipart = "0.7.2"
 reqwest = { version = "0.12.7", features = ["blocking", "rustls-tls", "multipart"] }
 
 [dependencies.windows-sys]
-version = "0.52.0"
+version = "0.59.0"
 features = [
     "Win32_System_Memory",
     "Win32_Foundation",

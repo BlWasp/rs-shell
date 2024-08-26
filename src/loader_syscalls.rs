@@ -860,7 +860,7 @@ pub fn remote_loader_syscalls(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), B
         if !NT_SUCCESS(status) {
             log::debug!("Error resuming thread: {:x}", status);
         }
-        CloseHandle(prochandle as isize);
+        CloseHandle(prochandle);
     }
 
     Ok(())

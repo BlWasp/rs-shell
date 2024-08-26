@@ -15,13 +15,13 @@ RS-Shell is reverse shell solution developped in Rust with client, implant and s
 
 RS-Shell implements two modes: **TLS over TCP** and **HTTPS**.
 
-* TLS over TCP mode is a standard reverse shell where the implant executed on the target machine will connect back to the TLS listener, running on the *attacker*'s machine
+* TLS over TCP mode is a standard reverse shell where the implant executed on the target machine will connect back to the TLS listener, running on the operator's machine
 * HTTPS mode works more like a C2 infratructure, with an HTTPS server, an implant, and a client:
     * The HTTPS server is executed on a server accessible by both the implant and the client. It is based on the [Actix](https://actix.rs/) web framework with [Rustls](https://docs.rs/rustls/latest/rustls/)
     * The implant is executed on the target machine and will request the server for "new tasks" every 2 seconds (by default, can be changed in the code for the moment)
-    * The client is executed on the *attacker* machine. It will also connect to the server via HTTPS, and will permit to send the commands to the implant
+    * The client is executed on the operator's machine. It will also connect to the server via HTTPS, and will permit to send the commands to the implant
 
-Windows HTTPS implant is partially proxy aware thanks to the [Windows's WinINet library](https://learn.microsoft.com/fr-fr/windows/win32/wininet/about-wininet). This means that it is able to identify proxy configuration in the registry and automatically authenticate against it if necessary (if the proxy is not configured via the registry or a WPAD file, this will probably fail).
+Windows HTTPS implant is partially proxy aware thanks to the [Windows's WinINet library](https://learn.microsoft.com/fr-fr/windows/win32/wininet/about-wininet). This means that it is able to identify proxy configuration in the registry and automatically authenticate against it if necessary (if the proxy is not configured via the registry or a WPAD file, this will probably fail, and you will have to indicate the proxy URL and the credentials manually in the implant code).
 
 Client, implant and server are all cross-platform and work on Windows and Linux systems.
 

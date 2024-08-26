@@ -46,7 +46,7 @@ pub fn fill_structure_from_array<T, U>(base: &mut T, arr: &[U], syscalls_value: 
 pub fn fill_structure_from_memory<T>(
     struct_to_fill: &mut T,
     base: *const c_void,
-    prochandle: isize,
+    prochandle: *mut c_void,
     syscalls_value: bool,
 ) {
     unsafe {
@@ -73,7 +73,7 @@ pub fn fill_structure_from_memory<T>(
     }
 }
 
-pub fn read_from_memory(base: *const c_void, prochandle: isize, syscalls_value: bool) -> String {
+pub fn read_from_memory(base: *const c_void, prochandle: *mut c_void, syscalls_value: bool) -> String {
     let mut buf: Vec<u8> = vec![0; 100];
     unsafe {
         if syscalls_value {
