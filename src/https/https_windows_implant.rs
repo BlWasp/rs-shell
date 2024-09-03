@@ -437,7 +437,7 @@ pub fn implant(ip: &str) -> Result<(), Box<dyn Error>> {
                         implant(ip)?;
                     }
                 }
-                // For the moment the implant sleeps 3 seconds between each request, could be interesting to randomize this value
+                // For the moment the implant sleeps 2 seconds between each request, could be interesting to randomize this value
                 // Or setup an option to change it via the CLI
                 thread::sleep(time::Duration::from_secs(2));
             }

@@ -73,7 +73,11 @@ pub fn fill_structure_from_memory<T>(
     }
 }
 
-pub fn read_from_memory(base: *const c_void, prochandle: *mut c_void, syscalls_value: bool) -> String {
+pub fn read_from_memory(
+    base: *const c_void,
+    prochandle: *mut c_void,
+    syscalls_value: bool,
+) -> String {
     let mut buf: Vec<u8> = vec![0; 100];
     unsafe {
         if syscalls_value {

