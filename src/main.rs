@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Command::new("rs-shell")
         .author("BlackWasp")
-        .version("0.2.1")
+        .version("0.2.5")
         .after_help("In a session, type 'help' for advanced integrated commands")
         .arg(
             Arg::new("mode")
